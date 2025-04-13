@@ -331,31 +331,46 @@ function drawDetections(detection) {
     // Save current canvas state
     canvasCtx.save();
     
-    // Clear any existing drawings
-    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    
-    // Set drawing styles
-    canvasCtx.strokeStyle = '#00FF00';
-    canvasCtx.lineWidth = 4;  // Made thicker
-    canvasCtx.fillStyle = '#00FF00';
-    canvasCtx.font = '16px Arial';
-    
     try {
-        // Draw bounding box
-        canvasCtx.beginPath();
+        // Draw semi-transparent background for better visibility
+        canvasCtx.fillStyle = 'rgba(0, 255, 0, 0.2)';
+        canvasCtx.fillRect(drawX, drawY, boxWidth, boxHeight);
+        
+        // Draw outer box
+        canvasCtx.strokeStyle = '#00FF00';
+        canvasCtx.lineWidth = 6;  // Even thicker
+        canvasCtx.strokeRect(drawX, drawY, boxWidth, boxHeight);
+        
+        // Draw inner box
+        canvasCtx.strokeStyle = '#000000';
+        canvasCtx.lineWidth = 2;
         canvasCtx.strokeRect(drawX, drawY, boxWidth, boxHeight);
         debugLog('Drew bounding box', 'info');
         
-        // Draw confidence score
-        canvasCtx.fillText(`Ball: ${(confidence * 100).toFixed(1)}%`, drawX, drawY - 5);
+        // Draw confidence score with background
+        const text = `Ball: ${(confidence * 100).toFixed(1)}%`;
+        canvasCtx.font = 'bold 20px Arial';  // Larger, bold font
+        
+        // Text background
+        canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        const textMetrics = canvasCtx.measureText(text);
+        canvasCtx.fillRect(drawX, drawY - 30, textMetrics.width + 10, 25);
+        
+        // Text
+        canvasCtx.fillStyle = '#00FF00';
+        canvasCtx.fillText(text, drawX + 5, drawY - 10);
         debugLog('Drew confidence score', 'info');
         
-        // Draw crosshair at center
+        // Draw crosshair
+        canvasCtx.strokeStyle = '#00FF00';
+        canvasCtx.lineWidth = 3;
         canvasCtx.beginPath();
-        canvasCtx.moveTo(boxX - 10, boxY);
-        canvasCtx.lineTo(boxX + 10, boxY);
-        canvasCtx.moveTo(boxX, boxY - 10);
-        canvasCtx.lineTo(boxX, boxY + 10);
+        // Horizontal line
+        canvasCtx.moveTo(boxX - 20, boxY);
+        canvasCtx.lineTo(boxX + 20, boxY);
+        // Vertical line
+        canvasCtx.moveTo(boxX, boxY - 20);
+        canvasCtx.lineTo(boxX, boxY + 20);
         canvasCtx.stroke();
         debugLog('Drew crosshair', 'info');
         
@@ -367,6 +382,25 @@ function drawDetections(detection) {
     canvasCtx.restore();
     
     debugLog('Finished drawing detection', 'success');
+}
+
+// Make sure we're not clearing the canvas during video updates
+function updateCanvas() {
+    if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
+        // Get the video dimensions
+        const videoWidth = videoElement.videoWidth;
+        const videoHeight = videoElement.videoHeight;
+        
+        // Update canvas size if needed
+        if (canvasElement.width !== videoWidth || canvasElement.height !== videoHeight) {
+            canvasElement.width = videoWidth;
+            canvasElement.height = videoHeight;
+            debugLog(`Updated canvas dimensions to ${videoWidth}x${videoHeight}`, 'info');
+        }
+        
+        // Draw video frame without clearing previous drawings
+        canvasCtx.drawImage(videoElement, 0, 0);
+    }
 }
 
 // --- Camera Setup ---
