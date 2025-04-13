@@ -8,6 +8,24 @@ const recordButton = document.getElementById('recordButton');
 const stopButton = document.getElementById('stopButton');
 const playbackButton = document.getElementById('playbackButton');
 
+// Add these at the top with other DOM elements
+const debugPanel = document.createElement('div');
+debugPanel.style.cssText = `
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 150px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 10px;
+    overflow-y: auto;
+    z-index: 1000;
+`;
+document.body.appendChild(debugPanel);
+
 let stream = null;
 let isRecording = false;
 let animationFrameId = null;
@@ -18,57 +36,74 @@ const MAX_DETECTION_HISTORY = 5; // Number of frames to keep for smoothing
 const MIN_CONFIDENCE = 0.001; // Minimum confidence to consider a detection
 const IOU_THRESHOLD = 0.2; // Intersection over Union threshold for clustering
 
+// Add debug logging function
+function debugLog(message, type = 'info') {
+    const colors = {
+        info: '#fff',
+        error: '#ff4444',
+        success: '#44ff44',
+        warning: '#ffff44'
+    };
+    
+    const entry = document.createElement('div');
+    entry.style.color = colors[type] || colors.info;
+    entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+    debugPanel.insertBefore(entry, debugPanel.firstChild);
+    
+    // Keep only last 20 messages
+    while (debugPanel.children.length > 20) {
+        debugPanel.removeChild(debugPanel.lastChild);
+    }
+    
+    // Also log to console
+    console.log(message);
+}
+
 // --- Model Loading ---
 
 async function loadModel() {
     try {
-        // Show loading indicator (you might want to add a UI element for this)
-        console.log('Loading model...');
-        console.log('TensorFlow.js version:', tf.version.tfjs);
-        console.log('Backend:', tf.getBackend());
+        debugLog('Loading model...', 'info');
+        debugLog(`TensorFlow.js version: ${tf.version.tfjs}`, 'info');
+        debugLog(`Backend: ${tf.getBackend()}`, 'info');
         
-        // Load the model from your exported files
         const modelUrl = './my_model_web_model/model.json';
-        console.log('Attempting to load model from:', modelUrl);
+        debugLog(`Attempting to load model from: ${modelUrl}`, 'info');
         
-        // First check if the model file exists
         try {
             const response = await fetch(modelUrl);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const modelJson = await response.json();
-            console.log('Model JSON loaded:', modelJson);
+            debugLog('Model JSON loaded successfully', 'success');
         } catch (fetchError) {
-            console.error('Error checking model.json:', fetchError);
+            debugLog(`Error checking model.json: ${fetchError}`, 'error');
             throw new Error('Could not access model.json file');
         }
         
-        // Load the model
         model = await tf.loadGraphModel(modelUrl, {
             onProgress: (fraction) => {
-                console.log(`Model loading progress: ${(fraction * 100).toFixed(1)}%`);
+                debugLog(`Model loading progress: ${(fraction * 100).toFixed(1)}%`, 'info');
             }
         });
         
-        // Test the model with a dummy tensor to ensure it's working
-        console.log('Testing model...');
+        debugLog('Testing model...', 'info');
         const dummyTensor = tf.zeros([1, 640, 640, 3]);
         const testResult = await model.predict(dummyTensor);
-        console.log('Model input shape:', dummyTensor.shape);
-        console.log('Model output shape:', testResult.shape);
+        debugLog(`Model input shape: ${dummyTensor.shape}`, 'info');
+        debugLog(`Model output shape: ${testResult.shape}`, 'info');
         dummyTensor.dispose();
         testResult.dispose();
         
         isModelLoaded = true;
-        console.log('Model loaded and tested successfully');
+        debugLog('Model loaded and tested successfully', 'success');
         
-        // Enable UI elements that depend on the model
         recordButton.disabled = false;
     } catch (error) {
-        console.error('Detailed error loading model:', error);
-        console.error('Error stack:', error.stack);
-        alert('Failed to load ball detection model. Check console for details.');
+        debugLog(`Error loading model: ${error.message}`, 'error');
+        debugLog(`Error stack: ${error.stack}`, 'error');
+        alert('Failed to load ball detection model. Check debug panel for details.');
         throw error;
     }
 }
@@ -77,57 +112,55 @@ async function loadModel() {
 
 async function detectBall(imageData) {
     if (!model) {
-        console.log('Model not loaded yet');
+        debugLog('Model not loaded yet', 'warning');
         return null;
     }
     
     try {
-        console.log('Input image size:', imageData.width, 'x', imageData.height);
+        debugLog(`Input image size: ${imageData.width}x${imageData.height}`, 'info');
         
-        // Convert the image data to a tensor and preprocess
         const tensor = tf.tidy(() => {
             const imageTensor = tf.browser.fromPixels(imageData);
-            console.log('Original tensor shape:', imageTensor.shape);
+            debugLog(`Original tensor shape: ${imageTensor.shape}`, 'info');
             
-            // Normalize the image (convert to float32 and scale to [0,1])
             const normalized = tf.div(tf.cast(imageTensor, 'float32'), 255);
-            console.log('Normalized tensor shape:', normalized.shape);
+            debugLog(`Normalized tensor shape: ${normalized.shape}`, 'info');
             
-            // Ensure the image is 640x640
             const resized = tf.image.resizeBilinear(normalized, [640, 640]);
-            console.log('Resized tensor shape:', resized.shape);
+            debugLog(`Resized tensor shape: ${resized.shape}`, 'info');
             
             const batched = resized.expandDims(0);
-            console.log('Final input tensor shape:', batched.shape);
+            debugLog(`Final input tensor shape: ${batched.shape}`, 'info');
             return batched;
         });
         
-        // Run inference
-        console.log('Running model prediction...');
+        debugLog('Running model prediction...', 'info');
         const predictions = await model.predict(tensor);
-        console.log('Raw prediction output shape:', predictions.shape);
+        debugLog(`Raw prediction output shape: ${predictions.shape}`, 'info');
         
-        // Clean up tensor memory
         tensor.dispose();
         
-        // Process predictions
         const arrayPreds = await predictions.array();
         predictions.dispose();
         
-        console.log('Prediction array structure:', {
+        const predictionInfo = {
             length: arrayPreds.length,
             firstDimLength: arrayPreds[0].length,
             sampleValues: arrayPreds[0].map(arr => arr.slice(0, 3))
-        });
+        };
+        debugLog(`Prediction structure: ${JSON.stringify(predictionInfo)}`, 'info');
         
-        // Process the predictions to get the highest confidence detection
         const detections = processDetections(arrayPreds[0]);
-        console.log('Processed detections:', detections);
+        if (detections) {
+            debugLog(`Detection found: confidence ${(detections[4] * 100).toFixed(2)}%`, 'success');
+        } else {
+            debugLog('No detections above threshold', 'warning');
+        }
         
         return detections;
     } catch (error) {
-        console.error('Error during detection:', error);
-        console.error('Error stack:', error.stack);
+        debugLog(`Error during detection: ${error.message}`, 'error');
+        debugLog(`Error stack: ${error.stack}`, 'error');
         return null;
     }
 }
