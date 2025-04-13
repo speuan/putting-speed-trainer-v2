@@ -35,6 +35,9 @@ let lastDetections = []; // Store last N detections for smoothing
 const MAX_DETECTION_HISTORY = 5; // Number of frames to keep for smoothing
 const MIN_CONFIDENCE = 0.001; // Minimum confidence to consider a detection
 const IOU_THRESHOLD = 0.2; // Intersection over Union threshold for clustering
+const PROCESS_EVERY_N_FRAMES = 2; // Only process every 2nd frame
+const MODEL_INPUT_SIZE = 320; // Reduce from 640 to 320
+let frameCount = 0;
 
 // Add debug logging function
 function debugLog(message, type = 'info') {
@@ -117,12 +120,10 @@ async function detectBall(imageData) {
     }
     
     try {
-        debugLog(`Input image size: ${imageData.width}x${imageData.height}`, 'info');
-        
         const tensor = tf.tidy(() => {
             const imageTensor = tf.browser.fromPixels(imageData);
             const normalized = tf.div(tf.cast(imageTensor, 'float32'), 255);
-            const resized = tf.image.resizeBilinear(normalized, [640, 640]);
+            const resized = tf.image.resizeBilinear(normalized, [MODEL_INPUT_SIZE, MODEL_INPUT_SIZE]);
             const batched = resized.expandDims(0);
             return batched;
         });
@@ -133,13 +134,11 @@ async function detectBall(imageData) {
         const arrayPreds = await predictions.array();
         predictions.dispose();
         
-        const detections = processDetections(arrayPreds[0]);
+        const detections = processDetections(arrayPreds[0], MODEL_INPUT_SIZE);
         
         if (detections) {
             const [x, y, w, h, conf] = detections;
             debugLog(`Detection found: x=${x.toFixed(4)}, y=${y.toFixed(4)}, w=${w.toFixed(4)}, h=${h.toFixed(4)}, conf=${(conf * 100).toFixed(2)}%`, 'success');
-        } else {
-            debugLog('No detections above threshold', 'warning');
         }
         
         return detections;
@@ -149,7 +148,7 @@ async function detectBall(imageData) {
     }
 }
 
-function processDetections(predictions) {
+function processDetections(predictions, inputSize) {
     if (!predictions || predictions.length !== 5) {
         console.log('Invalid predictions format:', predictions);
         return null;
@@ -161,10 +160,10 @@ function processDetections(predictions) {
         const confidence = predictions[4][i];
         if (confidence > MIN_CONFIDENCE) {
             detections.push({
-                x: predictions[0][i] / 640, // Normalize coordinates
-                y: predictions[1][i] / 640,
-                w: predictions[2][i] / 640,
-                h: predictions[3][i] / 640,
+                x: predictions[0][i] / inputSize, // Normalize coordinates
+                y: predictions[1][i] / inputSize,
+                w: predictions[2][i] / inputSize,
+                h: predictions[3][i] / inputSize,
                 confidence: confidence
             });
         }
@@ -395,7 +394,6 @@ async function drawVideoFrame() {
         if (canvasElement.width !== videoElement.videoWidth || canvasElement.height !== videoElement.videoHeight) {
             canvasElement.width = videoElement.videoWidth;
             canvasElement.height = videoElement.videoHeight;
-            debugLog(`Updated canvas dimensions to ${videoElement.videoWidth}x${videoElement.videoHeight}`, 'info');
         }
 
         // Create a temporary canvas for compositing
@@ -411,8 +409,12 @@ async function drawVideoFrame() {
         let detections = null;
         if (isRecording && isModelLoaded) {
             try {
-                const imageData = tempCtx.getImageData(0, 0, canvasElement.width, canvasElement.height);
-                detections = await detectBall(imageData);
+                // Only process every Nth frame
+                if (frameCount % PROCESS_EVERY_N_FRAMES === 0) {
+                    const imageData = tempCtx.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                    detections = await detectBall(imageData);
+                }
+                frameCount++;
             } catch (error) {
                 debugLog(`Error processing frame: ${error.message}`, 'error');
             }
@@ -420,19 +422,11 @@ async function drawVideoFrame() {
 
         // Now draw everything to the main canvas
         canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-        
-        // Draw the video frame
         canvasCtx.drawImage(tempCanvas, 0, 0);
 
-        // If we have detections, draw them last
+        // If we have detections, draw them
         if (detections) {
             drawDetections(detections);
-            
-            // Log coordinates for debugging
-            const [x, y, w, h, conf] = detections;
-            const screenX = x * canvasElement.width;
-            const screenY = y * canvasElement.height;
-            debugLog(`Screen coordinates: (${screenX.toFixed(1)}, ${screenY.toFixed(1)})`, 'info');
         }
 
         // Request the next frame
