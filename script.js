@@ -282,34 +282,14 @@ function smoothDetections(detections) {
 }
 
 function drawDetections(detection) {
-    debugLog('Drawing detection:', 'info');
-    
-    // Validate canvas context
-    if (!canvasElement || !canvasCtx) {
-        debugLog('Canvas or context is null', 'error');
+    if (!canvasElement || !canvasCtx || !detection) {
         return;
     }
     
-    debugLog(`Canvas dimensions: ${canvasElement.width}x${canvasElement.height}`, 'info');
-    
-    if (!detection) {
-        debugLog('No detection provided to drawDetections', 'warning');
-        return;
-    }
-    
-    // Extract values from detection (these are now normalized 0-1)
+    // Extract values from detection (these are normalized 0-1)
     const [x, y, w, h, confidence] = detection;
     
-    // Validate detection values
-    if (isNaN(x) || isNaN(y) || isNaN(w) || isNaN(h) || isNaN(confidence)) {
-        debugLog(`Invalid detection values: x=${x}, y=${y}, w=${w}, h=${h}, conf=${confidence}`, 'error');
-        return;
-    }
-    
-    // Log the normalized values
-    debugLog(`Normalized detection: x=${x.toFixed(4)}, y=${y.toFixed(4)}, w=${w.toFixed(4)}, h=${h.toFixed(4)}, conf=${(confidence * 100).toFixed(2)}%`, 'info');
-    
-    // Convert normalized coordinates to canvas coordinates (center coordinates)
+    // Convert normalized coordinates to canvas coordinates
     const centerX = x * canvasElement.width;
     const centerY = y * canvasElement.height;
     const boxWidth = w * canvasElement.width;
@@ -319,72 +299,30 @@ function drawDetections(detection) {
     const drawX = centerX - (boxWidth / 2);
     const drawY = centerY - (boxHeight / 2);
     
-    // Debug coordinate conversions
-    debugLog(`Center point: (${centerX.toFixed(1)}, ${centerY.toFixed(1)})`, 'info');
-    debugLog(`Box dimensions: ${boxWidth.toFixed(1)}x${boxHeight.toFixed(1)}`, 'info');
-    debugLog(`Drawing at: (${drawX.toFixed(1)}, ${drawY.toFixed(1)})`, 'info');
-    
     try {
-        // Draw a large test circle at the detection point
-        canvasCtx.beginPath();
-        canvasCtx.arc(centerX, centerY, 50, 0, 2 * Math.PI);
-        canvasCtx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-        canvasCtx.fill();
-        
-        // Draw extremely visible box
-        canvasCtx.lineWidth = 20;  // Much thicker
-        
-        // Outer glow (white)
-        canvasCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        // Draw thin bounding box
+        canvasCtx.lineWidth = 2;
+        canvasCtx.strokeStyle = '#00FF00';
         canvasCtx.strokeRect(drawX, drawY, boxWidth, boxHeight);
         
-        // Inner box (bright red)
-        canvasCtx.strokeStyle = '#FF0000';
-        canvasCtx.lineWidth = 10;
-        canvasCtx.strokeRect(drawX, drawY, boxWidth, boxHeight);
-        
-        // Draw confidence score
+        // Draw small confidence score
         const text = `${(confidence * 100).toFixed(1)}%`;
-        canvasCtx.font = 'bold 48px Arial';  // Much larger font
+        canvasCtx.font = '14px Arial';
         
         // Text background
-        const padding = 20;
+        const padding = 4;
         const textMetrics = canvasCtx.measureText(text);
-        canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.6)';
         canvasCtx.fillRect(
             drawX, 
-            drawY - 70, 
+            drawY - 20, 
             textMetrics.width + padding * 2, 
-            60
+            18
         );
         
         // Text
-        canvasCtx.fillStyle = '#FF0000';
-        canvasCtx.fillText(text, drawX + padding, drawY - 25);
-        
-        // Draw crosshair
-        canvasCtx.lineWidth = 10;
-        
-        // White outline
-        canvasCtx.strokeStyle = '#FFFFFF';
-        canvasCtx.beginPath();
-        canvasCtx.moveTo(centerX - 50, centerY);
-        canvasCtx.lineTo(centerX + 50, centerY);
-        canvasCtx.moveTo(centerX, centerY - 50);
-        canvasCtx.lineTo(centerX, centerY + 50);
-        canvasCtx.stroke();
-        
-        // Red center
-        canvasCtx.strokeStyle = '#FF0000';
-        canvasCtx.lineWidth = 5;
-        canvasCtx.beginPath();
-        canvasCtx.moveTo(centerX - 50, centerY);
-        canvasCtx.lineTo(centerX + 50, centerY);
-        canvasCtx.moveTo(centerX, centerY - 50);
-        canvasCtx.lineTo(centerX, centerY + 50);
-        canvasCtx.stroke();
-        
-        debugLog('Drew all elements successfully', 'success');
+        canvasCtx.fillStyle = '#00FF00';
+        canvasCtx.fillText(text, drawX + padding, drawY - 6);
         
     } catch (error) {
         debugLog(`Error during drawing: ${error.message}`, 'error');
@@ -486,41 +424,15 @@ async function drawVideoFrame() {
         // Draw the video frame
         canvasCtx.drawImage(tempCanvas, 0, 0);
 
-        // Draw test patterns
-        // Cross in the center
-        const centerX = canvasElement.width / 2;
-        const centerY = canvasElement.height / 2;
-        canvasCtx.lineWidth = 4;
-        
-        // White cross
-        canvasCtx.strokeStyle = '#FFFFFF';
-        canvasCtx.beginPath();
-        canvasCtx.moveTo(centerX - 50, centerY);
-        canvasCtx.lineTo(centerX + 50, centerY);
-        canvasCtx.moveTo(centerX, centerY - 50);
-        canvasCtx.lineTo(centerX, centerY + 50);
-        canvasCtx.stroke();
-        
-        // Corner squares
-        canvasCtx.fillStyle = 'rgba(255, 0, 0, 0.8)';
-        canvasCtx.fillRect(0, 0, 50, 50);  // Top-left
-        canvasCtx.fillStyle = 'rgba(0, 255, 0, 0.8)';
-        canvasCtx.fillRect(canvasElement.width - 50, 0, 50, 50);  // Top-right
-        canvasCtx.fillStyle = 'rgba(0, 0, 255, 0.8)';
-        canvasCtx.fillRect(0, canvasElement.height - 50, 50, 50);  // Bottom-left
-        canvasCtx.fillStyle = 'rgba(255, 255, 0, 0.8)';
-        canvasCtx.fillRect(canvasElement.width - 50, canvasElement.height - 50, 50, 50);  // Bottom-right
-
         // If we have detections, draw them last
         if (detections) {
             drawDetections(detections);
             
             // Log coordinates for debugging
             const [x, y, w, h, conf] = detections;
-            debugLog(`Raw detection values: x=${x}, y=${y}, w=${w}, h=${h}`, 'info');
             const screenX = x * canvasElement.width;
             const screenY = y * canvasElement.height;
-            debugLog(`Screen coordinates: (${screenX}, ${screenY})`, 'info');
+            debugLog(`Screen coordinates: (${screenX.toFixed(1)}, ${screenY.toFixed(1)})`, 'info');
         }
 
         // Request the next frame
