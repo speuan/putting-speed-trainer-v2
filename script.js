@@ -33,12 +33,12 @@ let model = null; // TensorFlow.js model
 let isModelLoaded = false;
 let lastDetections = []; // Store last N detections for smoothing
 const MAX_DETECTION_HISTORY = 5; // Number of frames to keep for smoothing
-const MIN_CONFIDENCE = 0.001; // Minimum confidence to consider a detection
+const MIN_CONFIDENCE = 0.7; // Minimum confidence threshold of 70%
 const IOU_THRESHOLD = 0.2; // Intersection over Union threshold for clustering
-const PROCESS_EVERY_N_FRAMES = 3; // Process every 3rd frame instead
-const MODEL_INPUT_SIZE = 640; // Keep original size that model expects
+const PROCESS_EVERY_N_FRAMES = 3; // Process every 3rd frame
+const MODEL_INPUT_SIZE = 640; // Model input size
 let frameCount = 0;
-let lastProcessedDetections = null; // Store last detection to show between processed frames
+let lastProcessedDetections = null;
 
 // Add debug logging function
 function debugLog(message, type = 'info') {
@@ -151,7 +151,6 @@ async function detectBall(imageData) {
 
 function processDetections(predictions, inputSize) {
     if (!predictions || predictions.length !== 5) {
-        console.log('Invalid predictions format:', predictions);
         return null;
     }
     
@@ -159,9 +158,9 @@ function processDetections(predictions, inputSize) {
     const detections = [];
     for (let i = 0; i < predictions[0].length; i++) {
         const confidence = predictions[4][i];
-        if (confidence > MIN_CONFIDENCE) {
+        if (confidence > MIN_CONFIDENCE) {  // Only consider detections above 70%
             detections.push({
-                x: predictions[0][i] / inputSize, // Normalize coordinates
+                x: predictions[0][i] / inputSize,
                 y: predictions[1][i] / inputSize,
                 w: predictions[2][i] / inputSize,
                 h: predictions[3][i] / inputSize,
@@ -170,7 +169,10 @@ function processDetections(predictions, inputSize) {
         }
     }
     
-    if (detections.length === 0) return null;
+    if (detections.length === 0) {
+        lastProcessedDetections = null; // Clear last detection if no high confidence detections
+        return null;
+    }
     
     // Cluster overlapping detections
     const clusters = clusterDetections(detections);
