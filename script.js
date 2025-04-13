@@ -328,78 +328,69 @@ function drawDetections(detection) {
     // Log the final drawing coordinates
     debugLog(`Drawing coordinates: x=${drawX.toFixed(1)}, y=${drawY.toFixed(1)}, w=${boxWidth.toFixed(1)}, h=${boxHeight.toFixed(1)}`, 'info');
     
-    // Save current canvas state
-    canvasCtx.save();
-    
     try {
-        // Draw semi-transparent background for better visibility
-        canvasCtx.fillStyle = 'rgba(0, 255, 0, 0.2)';
-        canvasCtx.fillRect(drawX, drawY, boxWidth, boxHeight);
+        // Make drawings more visible
+        canvasCtx.lineWidth = 8;  // Even thicker
         
-        // Draw outer box
+        // Draw outer glow (white)
+        canvasCtx.strokeStyle = '#FFFFFF';
+        canvasCtx.strokeRect(drawX, drawY, boxWidth, boxHeight);
+        
+        // Draw main box (green)
         canvasCtx.strokeStyle = '#00FF00';
-        canvasCtx.lineWidth = 6;  // Even thicker
+        canvasCtx.lineWidth = 4;
         canvasCtx.strokeRect(drawX, drawY, boxWidth, boxHeight);
         
-        // Draw inner box
-        canvasCtx.strokeStyle = '#000000';
-        canvasCtx.lineWidth = 2;
-        canvasCtx.strokeRect(drawX, drawY, boxWidth, boxHeight);
-        debugLog('Drew bounding box', 'info');
-        
-        // Draw confidence score with background
+        // Draw confidence score with better visibility
         const text = `Ball: ${(confidence * 100).toFixed(1)}%`;
-        canvasCtx.font = 'bold 20px Arial';  // Larger, bold font
+        canvasCtx.font = 'bold 24px Arial';  // Even larger font
         
         // Text background
-        canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        const padding = 10;
         const textMetrics = canvasCtx.measureText(text);
-        canvasCtx.fillRect(drawX, drawY - 30, textMetrics.width + 10, 25);
+        canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.8)';  // More opaque background
+        canvasCtx.fillRect(
+            drawX, 
+            drawY - 40, 
+            textMetrics.width + padding * 2, 
+            35
+        );
         
-        // Text
-        canvasCtx.fillStyle = '#00FF00';
-        canvasCtx.fillText(text, drawX + 5, drawY - 10);
-        debugLog('Drew confidence score', 'info');
-        
-        // Draw crosshair
-        canvasCtx.strokeStyle = '#00FF00';
+        // Text with outline
+        canvasCtx.strokeStyle = '#000000';
         canvasCtx.lineWidth = 3;
+        canvasCtx.strokeText(text, drawX + padding, drawY - 15);
+        canvasCtx.fillStyle = '#00FF00';
+        canvasCtx.fillText(text, drawX + padding, drawY - 15);
+        
+        // Draw large crosshair
         canvasCtx.beginPath();
+        canvasCtx.strokeStyle = '#FFFFFF';  // White outline
+        canvasCtx.lineWidth = 6;
         // Horizontal line
-        canvasCtx.moveTo(boxX - 20, boxY);
-        canvasCtx.lineTo(boxX + 20, boxY);
+        canvasCtx.moveTo(boxX - 30, boxY);
+        canvasCtx.lineTo(boxX + 30, boxY);
         // Vertical line
-        canvasCtx.moveTo(boxX, boxY - 20);
-        canvasCtx.lineTo(boxX, boxY + 20);
+        canvasCtx.moveTo(boxX, boxY - 30);
+        canvasCtx.lineTo(boxX, boxY + 30);
         canvasCtx.stroke();
-        debugLog('Drew crosshair', 'info');
+        
+        // Inner crosshair
+        canvasCtx.beginPath();
+        canvasCtx.strokeStyle = '#00FF00';  // Green center
+        canvasCtx.lineWidth = 2;
+        // Horizontal line
+        canvasCtx.moveTo(boxX - 30, boxY);
+        canvasCtx.lineTo(boxX + 30, boxY);
+        // Vertical line
+        canvasCtx.moveTo(boxX, boxY - 30);
+        canvasCtx.lineTo(boxX, boxY + 30);
+        canvasCtx.stroke();
+        
+        debugLog('Drew all elements successfully', 'success');
         
     } catch (error) {
         debugLog(`Error during drawing: ${error.message}`, 'error');
-    }
-    
-    // Restore canvas state
-    canvasCtx.restore();
-    
-    debugLog('Finished drawing detection', 'success');
-}
-
-// Make sure we're not clearing the canvas during video updates
-function updateCanvas() {
-    if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
-        // Get the video dimensions
-        const videoWidth = videoElement.videoWidth;
-        const videoHeight = videoElement.videoHeight;
-        
-        // Update canvas size if needed
-        if (canvasElement.width !== videoWidth || canvasElement.height !== videoHeight) {
-            canvasElement.width = videoWidth;
-            canvasElement.height = videoHeight;
-            debugLog(`Updated canvas dimensions to ${videoWidth}x${videoHeight}`, 'info');
-        }
-        
-        // Draw video frame without clearing previous drawings
-        canvasCtx.drawImage(videoElement, 0, 0);
     }
 }
 
@@ -465,7 +456,15 @@ async function setupCamera() {
 
 async function drawVideoFrame() {
     if (!videoElement.paused && !videoElement.ended) {
-        // Draw the current video frame onto the canvas
+        // Update canvas dimensions if needed
+        if (canvasElement.width !== videoElement.videoWidth || canvasElement.height !== videoElement.videoHeight) {
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+            debugLog(`Updated canvas dimensions to ${videoElement.videoWidth}x${videoElement.videoHeight}`, 'info');
+        }
+
+        // Clear the canvas and draw the current video frame
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
         canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
 
         if (isRecording && isModelLoaded) {
@@ -477,11 +476,18 @@ async function drawVideoFrame() {
                 const detections = await detectBall(imageData);
                 
                 if (detections) {
-                    // Draw detection results
+                    // Draw detection results AFTER video frame
                     drawDetections(detections);
+                    
+                    // Log all coordinates for debugging
+                    const [x, y, w, h, conf] = detections;
+                    debugLog(`Raw detection values: x=${x}, y=${y}, w=${w}, h=${h}`, 'info');
+                    const screenX = x * canvasElement.width;
+                    const screenY = y * canvasElement.height;
+                    debugLog(`Screen coordinates: (${screenX}, ${screenY})`, 'info');
                 }
             } catch (error) {
-                console.error('Error processing frame:', error);
+                debugLog(`Error processing frame: ${error.message}`, 'error');
             }
         }
 
