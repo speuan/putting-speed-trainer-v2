@@ -25,6 +25,7 @@ async function loadModel() {
         // Show loading indicator (you might want to add a UI element for this)
         console.log('Loading model...');
         console.log('TensorFlow.js version:', tf.version.tfjs);
+        console.log('Backend:', tf.getBackend());
         
         // Load the model from your exported files
         const modelUrl = './my_model_web_model/model.json';
@@ -36,7 +37,8 @@ async function loadModel() {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            console.log('model.json is accessible');
+            const modelJson = await response.json();
+            console.log('Model JSON loaded:', modelJson);
         } catch (fetchError) {
             console.error('Error checking model.json:', fetchError);
             throw new Error('Could not access model.json file');
@@ -53,6 +55,8 @@ async function loadModel() {
         console.log('Testing model...');
         const dummyTensor = tf.zeros([1, 640, 640, 3]);
         const testResult = await model.predict(dummyTensor);
+        console.log('Model input shape:', dummyTensor.shape);
+        console.log('Model output shape:', testResult.shape);
         dummyTensor.dispose();
         testResult.dispose();
         
@@ -72,96 +76,58 @@ async function loadModel() {
 // --- Ball Detection ---
 
 async function detectBall(imageData) {
-    if (!model) return null;
+    if (!model) {
+        console.log('Model not loaded yet');
+        return null;
+    }
     
     try {
+        console.log('Input image size:', imageData.width, 'x', imageData.height);
+        
         // Convert the image data to a tensor and preprocess
         const tensor = tf.tidy(() => {
             const imageTensor = tf.browser.fromPixels(imageData);
+            console.log('Original tensor shape:', imageTensor.shape);
+            
             // Normalize the image (convert to float32 and scale to [0,1])
             const normalized = tf.div(tf.cast(imageTensor, 'float32'), 255);
+            console.log('Normalized tensor shape:', normalized.shape);
+            
             // Ensure the image is 640x640
             const resized = tf.image.resizeBilinear(normalized, [640, 640]);
-            return resized.expandDims(0);
+            console.log('Resized tensor shape:', resized.shape);
+            
+            const batched = resized.expandDims(0);
+            console.log('Final input tensor shape:', batched.shape);
+            return batched;
         });
         
         // Run inference
+        console.log('Running model prediction...');
         const predictions = await model.predict(tensor);
+        console.log('Raw prediction output shape:', predictions.shape);
+        
+        // Clean up tensor memory
         tensor.dispose();
         
+        // Process predictions
         const arrayPreds = await predictions.array();
         predictions.dispose();
         
-        // Get all detections above minimum confidence
-        const detections = [];
-        const [xCoords, yCoords, widths, heights, scores] = arrayPreds[0];
+        console.log('Prediction array structure:', {
+            length: arrayPreds.length,
+            firstDimLength: arrayPreds[0].length,
+            sampleValues: arrayPreds[0].map(arr => arr.slice(0, 3))
+        });
         
-        for (let i = 0; i < scores.length; i++) {
-            if (scores[i] > MIN_CONFIDENCE) {
-                detections.push({
-                    x: xCoords[i],
-                    y: yCoords[i],
-                    w: widths[i],
-                    h: heights[i],
-                    confidence: scores[i]
-                });
-            }
-        }
+        // Process the predictions to get the highest confidence detection
+        const detections = processDetections(arrayPreds[0]);
+        console.log('Processed detections:', detections);
         
-        if (detections.length === 0) return null;
-        
-        // Find the detection with highest confidence
-        let bestDetection = detections[0];
-        for (let i = 1; i < detections.length; i++) {
-            if (detections[i].confidence > bestDetection.confidence) {
-                bestDetection = detections[i];
-            }
-        }
-        
-        // Add to detection history
-        const normalizedDetection = [
-            bestDetection.x / 640,
-            bestDetection.y / 640,
-            bestDetection.w / 640,
-            bestDetection.h / 640,
-            bestDetection.confidence
-        ];
-        
-        lastDetections.push(normalizedDetection);
-        if (lastDetections.length > MAX_DETECTION_HISTORY) {
-            lastDetections.shift();
-        }
-        
-        // Average the last few detections for smoothing
-        if (lastDetections.length > 0) {
-            const smoothed = {
-                x: 0,
-                y: 0,
-                w: 0,
-                h: 0,
-                confidence: 0
-            };
-            
-            for (const det of lastDetections) {
-                smoothed.x += det[0];
-                smoothed.y += det[1];
-                smoothed.w += det[2];
-                smoothed.h += det[3];
-                smoothed.confidence = Math.max(smoothed.confidence, det[4]);
-            }
-            
-            return [
-                smoothed.x / lastDetections.length,
-                smoothed.y / lastDetections.length,
-                smoothed.w / lastDetections.length,
-                smoothed.h / lastDetections.length,
-                smoothed.confidence
-            ];
-        }
-        
-        return normalizedDetection;
+        return detections;
     } catch (error) {
         console.error('Error during detection:', error);
+        console.error('Error stack:', error.stack);
         return null;
     }
 }
