@@ -1,0 +1,53 @@
+{
+  "name": "golf-putting-speed-trainer",
+  "description": "A Progressive Web App (PWA) that utilizes TensorFlow.js to analyze and measure the speed of golf putts through real-time ball tracking.",
+  "references": [
+    {
+      "title": "Golf Ball Tracking and Speed Detection",
+      "url": "https://github.com/natterman12/Golf-Ball-Tracking-and-Speed-Detection",
+      "description": "A project focused on tracking and calculating the speed of a golf putt using computer vision techniques."
+    },
+    {
+      "title": "Golf Ball Detection and Tracking Based on Convolutional Neural Networks",
+      "url": "https://kuscholarworks.ku.edu/handle/1808/32607",
+      "description": "A thesis discussing real-time detection and tracking of a golf ball using convolutional neural networks and Kalman filters."
+    },
+    {
+      "title": "Doodle Recognition PWA with TensorFlow.js",
+      "url": "https://github.com/hideya/tfjs-doodle-recognition-pwa",
+      "description": "An example of a Progressive Web App utilizing TensorFlow.js for in-browser image recognition."
+    },
+    {
+      "title": "Golf Ball Detection Model on Roboflow Universe",
+      "url": "https://universe.roboflow.com/golf-balls-detection/golf-ball-detection-nhyvq/model/1",
+      "description": "A pre-trained golf ball detection model that can be utilized for object detection tasks."
+    },
+    {
+      "title": "TensorFlow.js Demos",
+      "url": "https://www.tensorflow.org/js/demos",
+      "description": "A collection of live demos built with TensorFlow.js showcasing various applications."
+    }
+  ],
+  "tasks": [
+    {
+      "title": "Set Up Project Structure",
+      "description": "Initialize the project with the necessary directories and files for a PWA using TensorFlow.js."
+    },
+    {
+      "title": "Integrate TensorFlow.js",
+      "description": "Incorporate TensorFlow.js into the project to enable in-browser machine learning capabilities."
+    },
+    {
+      "title": "Develop Ball Detection Model",
+      "description": "Train or utilize an existing model to detect and track the golf ball in real-time."
+    },
+    {
+      "title": "Implement Speed Calculation",
+      "description": "Calculate the speed of the golf ball based on its movement across frames."
+    },
+    {
+      "title": "Design User Interface",
+      "description": "Create an intuitive UI for users to record putts, view analyses, and access other features."
+    }
+  ]
+}

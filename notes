@@ -1,0 +1,28 @@
+###Chatgpt Prompt to create PLANNING.md and TASK.md...
+
+I need your help with the high level direction and initial tasks. First, search for information on creating a small model training to use for TensorFLow.js detection. Then search for information about the overall PWA architecture.
+
+Then create a PLANNING.md and TASK.md file.
+
+PLANNING.md - high level direction, scope, tech etc.
+TASK.md - intital tasks to knock out for the project.
+
+
+
+
+##Initial Prompt
+
+
+
+
+Using the links in @REFERENCES.json create a javascript PWA as per @PLANNING.md 
+
+After doing so update @TASK.md since you have done the initial implementation.
+
+
+###############################
+
+
+
+
+/Users/euanstewart/Documents/Files/Projects/PuttingSpeed/PuttingSpeedv2/notes

@@ -1,0 +1,6 @@
+.DS_Store
+node_modules/
+*.zip
+.cursor/
+golf_ball_photos/
+my_model/

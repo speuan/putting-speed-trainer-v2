@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Golf Putting Speed Trainer</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4CAF50"> <!-- Example theme color -->
+</head>
+<body>
+    <h1>Golf Putting Speed Trainer</h1>
+    <div id="container">
+        <!-- Ensure video plays inline on iOS & set initial dimensions -->
+        <video id="videoFeed" width="640" height="640" playsinline autoplay muted></video>
+        <canvas id="outputCanvas" width="640" height="640"></canvas>
+    </div>
+    <div id="controls">
+        <button id="recordButton">Record</button>
+        <button id="stopButton" disabled>Stop</button>
+        <button id="playbackButton" disabled>Playback</button> <!-- Placeholder -->
+    </div>
+    <!-- TensorFlow.js Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js"></script>
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful');
+                    })
+                    .catch(err => {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+    </script>
+    <!-- Your application code -->
+    <script src="script.js"></script>
+</body>
+</html>

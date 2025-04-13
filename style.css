@@ -1,0 +1,79 @@
+body {
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1em;
+    background-color: #f0f0f0;
+}
+
+h1 {
+    color: #333;
+}
+
+#container {
+    position: relative;
+    width: 640px;
+    height: 640px;
+    border: 1px solid #ccc;
+    margin-bottom: 1em;
+    background-color: #000;
+}
+
+#videoFeed, #outputCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* This will crop the video to fill the square */
+}
+
+#outputCanvas {
+    /* Canvas sits on top of the video */
+    z-index: 10;
+}
+
+#controls {
+    display: flex;
+    gap: 1em;
+}
+
+button {
+    padding: 0.8em 1.5em;
+    font-size: 1em;
+    cursor: pointer;
+    border: none;
+    border-radius: 5px;
+    background-color: #4CAF50;
+    color: white;
+    transition: background-color 0.2s ease;
+}
+
+button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+button:hover:not(:disabled) {
+    background-color: #45a049;
+}
+
+/* Basic responsiveness */
+@media (max-width: 700px) {
+    #container, #videoFeed, #outputCanvas {
+        width: 95vw;
+        height: 95vw; /* Keep it square */
+    }
+    h1 {
+        font-size: 1.5em;
+    }
+    #controls {
+        flex-direction: column;
+        width: 95vw;
+        align-items: stretch;
+    }
+    button {
+        width: 100%;
+    }
+}
