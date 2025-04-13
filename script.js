@@ -284,6 +284,14 @@ function smoothDetections(detections) {
 function drawDetections(detection) {
     debugLog('Drawing detection:', 'info');
     
+    // Validate canvas context
+    if (!canvasElement || !canvasCtx) {
+        debugLog('Canvas or context is null', 'error');
+        return;
+    }
+    
+    debugLog(`Canvas dimensions: ${canvasElement.width}x${canvasElement.height}`, 'info');
+    
     if (!detection) {
         debugLog('No detection provided to drawDetections', 'warning');
         return;
@@ -313,26 +321,50 @@ function drawDetections(detection) {
         return;
     }
     
-    // Log the canvas coordinates
-    debugLog(`Canvas coordinates: x=${boxX.toFixed(1)}, y=${boxY.toFixed(1)}, w=${boxWidth.toFixed(1)}, h=${boxHeight.toFixed(1)}`, 'info');
+    // Calculate final drawing coordinates
+    const drawX = boxX - boxWidth/2;
+    const drawY = boxY - boxHeight/2;
     
-    // Draw bounding box
+    // Log the final drawing coordinates
+    debugLog(`Drawing coordinates: x=${drawX.toFixed(1)}, y=${drawY.toFixed(1)}, w=${boxWidth.toFixed(1)}, h=${boxHeight.toFixed(1)}`, 'info');
+    
+    // Save current canvas state
+    canvasCtx.save();
+    
+    // Clear any existing drawings
+    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    
+    // Set drawing styles
     canvasCtx.strokeStyle = '#00FF00';
-    canvasCtx.lineWidth = 2;
-    canvasCtx.strokeRect(boxX - boxWidth/2, boxY - boxHeight/2, boxWidth, boxHeight);
-    
-    // Draw confidence score
+    canvasCtx.lineWidth = 4;  // Made thicker
     canvasCtx.fillStyle = '#00FF00';
     canvasCtx.font = '16px Arial';
-    canvasCtx.fillText(`Ball: ${(confidence * 100).toFixed(1)}%`, boxX - boxWidth/2, boxY - boxHeight/2 - 5);
     
-    // Draw crosshair at center
-    canvasCtx.beginPath();
-    canvasCtx.moveTo(boxX - 10, boxY);
-    canvasCtx.lineTo(boxX + 10, boxY);
-    canvasCtx.moveTo(boxX, boxY - 10);
-    canvasCtx.lineTo(boxX, boxY + 10);
-    canvasCtx.stroke();
+    try {
+        // Draw bounding box
+        canvasCtx.beginPath();
+        canvasCtx.strokeRect(drawX, drawY, boxWidth, boxHeight);
+        debugLog('Drew bounding box', 'info');
+        
+        // Draw confidence score
+        canvasCtx.fillText(`Ball: ${(confidence * 100).toFixed(1)}%`, drawX, drawY - 5);
+        debugLog('Drew confidence score', 'info');
+        
+        // Draw crosshair at center
+        canvasCtx.beginPath();
+        canvasCtx.moveTo(boxX - 10, boxY);
+        canvasCtx.lineTo(boxX + 10, boxY);
+        canvasCtx.moveTo(boxX, boxY - 10);
+        canvasCtx.lineTo(boxX, boxY + 10);
+        canvasCtx.stroke();
+        debugLog('Drew crosshair', 'info');
+        
+    } catch (error) {
+        debugLog(`Error during drawing: ${error.message}`, 'error');
+    }
+    
+    // Restore canvas state
+    canvasCtx.restore();
     
     debugLog('Finished drawing detection', 'success');
 }
