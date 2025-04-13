@@ -309,24 +309,20 @@ function drawDetections(detection) {
     // Log the normalized values
     debugLog(`Normalized detection: x=${x.toFixed(4)}, y=${y.toFixed(4)}, w=${w.toFixed(4)}, h=${h.toFixed(4)}, conf=${(confidence * 100).toFixed(2)}%`, 'info');
     
-    // Convert normalized coordinates to canvas coordinates
-    const boxX = x * canvasElement.width;
-    const boxY = y * canvasElement.height;
+    // Convert normalized coordinates to canvas coordinates (center coordinates)
+    const centerX = x * canvasElement.width;
+    const centerY = y * canvasElement.height;
     const boxWidth = w * canvasElement.width;
     const boxHeight = h * canvasElement.height;
     
-    // Validate canvas coordinates
-    if (boxWidth <= 0 || boxHeight <= 0) {
-        debugLog(`Invalid box dimensions: width=${boxWidth}, height=${boxHeight}`, 'error');
-        return;
-    }
+    // Calculate top-left corner for drawing
+    const drawX = centerX - (boxWidth / 2);
+    const drawY = centerY - (boxHeight / 2);
     
-    // Calculate final drawing coordinates
-    const drawX = boxX - boxWidth/2;
-    const drawY = boxY - boxHeight/2;
-    
-    // Log the final drawing coordinates
-    debugLog(`Drawing coordinates: x=${drawX.toFixed(1)}, y=${drawY.toFixed(1)}, w=${boxWidth.toFixed(1)}, h=${boxHeight.toFixed(1)}`, 'info');
+    // Debug coordinate conversions
+    debugLog(`Center point: (${centerX.toFixed(1)}, ${centerY.toFixed(1)})`, 'info');
+    debugLog(`Box dimensions: ${boxWidth.toFixed(1)}x${boxHeight.toFixed(1)}`, 'info');
+    debugLog(`Drawing at: (${drawX.toFixed(1)}, ${drawY.toFixed(1)})`, 'info');
     
     try {
         // Make drawings more visible
@@ -363,16 +359,16 @@ function drawDetections(detection) {
         canvasCtx.fillStyle = '#00FF00';
         canvasCtx.fillText(text, drawX + padding, drawY - 15);
         
-        // Draw large crosshair
+        // Draw large crosshair at center point
         canvasCtx.beginPath();
         canvasCtx.strokeStyle = '#FFFFFF';  // White outline
         canvasCtx.lineWidth = 6;
         // Horizontal line
-        canvasCtx.moveTo(boxX - 30, boxY);
-        canvasCtx.lineTo(boxX + 30, boxY);
+        canvasCtx.moveTo(centerX - 30, centerY);
+        canvasCtx.lineTo(centerX + 30, centerY);
         // Vertical line
-        canvasCtx.moveTo(boxX, boxY - 30);
-        canvasCtx.lineTo(boxX, boxY + 30);
+        canvasCtx.moveTo(centerX, centerY - 30);
+        canvasCtx.lineTo(centerX, centerY + 30);
         canvasCtx.stroke();
         
         // Inner crosshair
@@ -380,12 +376,18 @@ function drawDetections(detection) {
         canvasCtx.strokeStyle = '#00FF00';  // Green center
         canvasCtx.lineWidth = 2;
         // Horizontal line
-        canvasCtx.moveTo(boxX - 30, boxY);
-        canvasCtx.lineTo(boxX + 30, boxY);
+        canvasCtx.moveTo(centerX - 30, centerY);
+        canvasCtx.lineTo(centerX + 30, centerY);
         // Vertical line
-        canvasCtx.moveTo(boxX, boxY - 30);
-        canvasCtx.lineTo(boxX, boxY + 30);
+        canvasCtx.moveTo(centerX, centerY - 30);
+        canvasCtx.lineTo(centerX, centerY + 30);
         canvasCtx.stroke();
+        
+        // Draw debug point at center
+        canvasCtx.fillStyle = '#FF0000';
+        canvasCtx.beginPath();
+        canvasCtx.arc(centerX, centerY, 4, 0, 2 * Math.PI);
+        canvasCtx.fill();
         
         debugLog('Drew all elements successfully', 'success');
         
