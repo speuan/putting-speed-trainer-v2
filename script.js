@@ -460,37 +460,67 @@ async function drawVideoFrame() {
             debugLog(`Updated canvas dimensions to ${videoElement.videoWidth}x${videoElement.videoHeight}`, 'info');
         }
 
-        // Draw the current video frame
-        canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+        // Create a temporary canvas for compositing
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvasElement.width;
+        tempCanvas.height = canvasElement.height;
+        const tempCtx = tempCanvas.getContext('2d');
 
-        // Draw test pattern
-        canvasCtx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-        canvasCtx.fillRect(0, 0, 50, 50);  // Red square in top-left
-        canvasCtx.fillStyle = 'rgba(0, 255, 0, 0.5)';
-        canvasCtx.fillRect(canvasElement.width - 50, 0, 50, 50);  // Green square in top-right
+        // Draw the current video frame to temp canvas
+        tempCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
 
+        // Get frame data for detection from the temp canvas
+        let detections = null;
         if (isRecording && isModelLoaded) {
             try {
-                // Get the frame data
-                const imageData = canvasCtx.getImageData(0, 0, canvasElement.width, canvasElement.height);
-                
-                // Detect ball in the frame
-                const detections = await detectBall(imageData);
-                
-                if (detections) {
-                    // Draw detection results
-                    drawDetections(detections);
-                    
-                    // Log all coordinates for debugging
-                    const [x, y, w, h, conf] = detections;
-                    debugLog(`Raw detection values: x=${x}, y=${y}, w=${w}, h=${h}`, 'info');
-                    const screenX = x * canvasElement.width;
-                    const screenY = y * canvasElement.height;
-                    debugLog(`Screen coordinates: (${screenX}, ${screenY})`, 'info');
-                }
+                const imageData = tempCtx.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                detections = await detectBall(imageData);
             } catch (error) {
                 debugLog(`Error processing frame: ${error.message}`, 'error');
             }
+        }
+
+        // Now draw everything to the main canvas
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        
+        // Draw the video frame
+        canvasCtx.drawImage(tempCanvas, 0, 0);
+
+        // Draw test patterns
+        // Cross in the center
+        const centerX = canvasElement.width / 2;
+        const centerY = canvasElement.height / 2;
+        canvasCtx.lineWidth = 4;
+        
+        // White cross
+        canvasCtx.strokeStyle = '#FFFFFF';
+        canvasCtx.beginPath();
+        canvasCtx.moveTo(centerX - 50, centerY);
+        canvasCtx.lineTo(centerX + 50, centerY);
+        canvasCtx.moveTo(centerX, centerY - 50);
+        canvasCtx.lineTo(centerX, centerY + 50);
+        canvasCtx.stroke();
+        
+        // Corner squares
+        canvasCtx.fillStyle = 'rgba(255, 0, 0, 0.8)';
+        canvasCtx.fillRect(0, 0, 50, 50);  // Top-left
+        canvasCtx.fillStyle = 'rgba(0, 255, 0, 0.8)';
+        canvasCtx.fillRect(canvasElement.width - 50, 0, 50, 50);  // Top-right
+        canvasCtx.fillStyle = 'rgba(0, 0, 255, 0.8)';
+        canvasCtx.fillRect(0, canvasElement.height - 50, 50, 50);  // Bottom-left
+        canvasCtx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+        canvasCtx.fillRect(canvasElement.width - 50, canvasElement.height - 50, 50, 50);  // Bottom-right
+
+        // If we have detections, draw them last
+        if (detections) {
+            drawDetections(detections);
+            
+            // Log coordinates for debugging
+            const [x, y, w, h, conf] = detections;
+            debugLog(`Raw detection values: x=${x}, y=${y}, w=${w}, h=${h}`, 'info');
+            const screenX = x * canvasElement.width;
+            const screenY = y * canvasElement.height;
+            debugLog(`Screen coordinates: (${screenX}, ${screenY})`, 'info');
         }
 
         // Request the next frame
