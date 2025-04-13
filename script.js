@@ -121,38 +121,23 @@ async function detectBall(imageData) {
         
         const tensor = tf.tidy(() => {
             const imageTensor = tf.browser.fromPixels(imageData);
-            debugLog(`Original tensor shape: ${imageTensor.shape}`, 'info');
-            
             const normalized = tf.div(tf.cast(imageTensor, 'float32'), 255);
-            debugLog(`Normalized tensor shape: ${normalized.shape}`, 'info');
-            
             const resized = tf.image.resizeBilinear(normalized, [640, 640]);
-            debugLog(`Resized tensor shape: ${resized.shape}`, 'info');
-            
             const batched = resized.expandDims(0);
-            debugLog(`Final input tensor shape: ${batched.shape}`, 'info');
             return batched;
         });
         
-        debugLog('Running model prediction...', 'info');
         const predictions = await model.predict(tensor);
-        debugLog(`Raw prediction output shape: ${predictions.shape}`, 'info');
-        
         tensor.dispose();
         
         const arrayPreds = await predictions.array();
         predictions.dispose();
         
-        const predictionInfo = {
-            length: arrayPreds.length,
-            firstDimLength: arrayPreds[0].length,
-            sampleValues: arrayPreds[0].map(arr => arr.slice(0, 3))
-        };
-        debugLog(`Prediction structure: ${JSON.stringify(predictionInfo)}`, 'info');
-        
         const detections = processDetections(arrayPreds[0]);
+        
         if (detections) {
-            debugLog(`Detection found: confidence ${(detections[4] * 100).toFixed(2)}%`, 'success');
+            const [x, y, w, h, conf] = detections;
+            debugLog(`Detection found: x=${x.toFixed(4)}, y=${y.toFixed(4)}, w=${w.toFixed(4)}, h=${h.toFixed(4)}, conf=${(conf * 100).toFixed(2)}%`, 'success');
         } else {
             debugLog('No detections above threshold', 'warning');
         }
@@ -160,7 +145,6 @@ async function detectBall(imageData) {
         return detections;
     } catch (error) {
         debugLog(`Error during detection: ${error.message}`, 'error');
-        debugLog(`Error stack: ${error.stack}`, 'error');
         return null;
     }
 }
@@ -298,13 +282,24 @@ function smoothDetections(detections) {
 }
 
 function drawDetections(detection) {
-    if (!detection) return;
+    debugLog('Drawing detection:', 'info');
+    
+    if (!detection) {
+        debugLog('No detection provided to drawDetections', 'warning');
+        return;
+    }
     
     // Extract values from detection (these are now normalized 0-1)
     const [x, y, w, h, confidence] = detection;
     
+    // Validate detection values
+    if (isNaN(x) || isNaN(y) || isNaN(w) || isNaN(h) || isNaN(confidence)) {
+        debugLog(`Invalid detection values: x=${x}, y=${y}, w=${w}, h=${h}, conf=${confidence}`, 'error');
+        return;
+    }
+    
     // Log the normalized values
-    console.log('Drawing normalized detection:', { x, y, w, h, confidence });
+    debugLog(`Normalized detection: x=${x.toFixed(4)}, y=${y.toFixed(4)}, w=${w.toFixed(4)}, h=${h.toFixed(4)}, conf=${(confidence * 100).toFixed(2)}%`, 'info');
     
     // Convert normalized coordinates to canvas coordinates
     const boxX = x * canvasElement.width;
@@ -312,51 +307,34 @@ function drawDetections(detection) {
     const boxWidth = w * canvasElement.width;
     const boxHeight = h * canvasElement.height;
     
+    // Validate canvas coordinates
+    if (boxWidth <= 0 || boxHeight <= 0) {
+        debugLog(`Invalid box dimensions: width=${boxWidth}, height=${boxHeight}`, 'error');
+        return;
+    }
+    
     // Log the canvas coordinates
-    console.log('Drawing canvas coordinates:', { boxX, boxY, boxWidth, boxHeight });
-    
-    // Draw debug points at corners to verify coordinate system
-    const corners = [
-        [boxX, boxY],                           // Top-left
-        [boxX + boxWidth, boxY],                // Top-right
-        [boxX + boxWidth, boxY + boxHeight],    // Bottom-right
-        [boxX, boxY + boxHeight]                // Bottom-left
-    ];
-    
-    // Draw the corners as small circles
-    canvasCtx.fillStyle = '#FF0000';
-    corners.forEach(([cx, cy]) => {
-        canvasCtx.beginPath();
-        canvasCtx.arc(cx, cy, 3, 0, 2 * Math.PI);
-        canvasCtx.fill();
-    });
+    debugLog(`Canvas coordinates: x=${boxX.toFixed(1)}, y=${boxY.toFixed(1)}, w=${boxWidth.toFixed(1)}, h=${boxHeight.toFixed(1)}`, 'info');
     
     // Draw bounding box
     canvasCtx.strokeStyle = '#00FF00';
     canvasCtx.lineWidth = 2;
-    canvasCtx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+    canvasCtx.strokeRect(boxX - boxWidth/2, boxY - boxHeight/2, boxWidth, boxHeight);
     
-    // Draw confidence score with more precision since values are very small
+    // Draw confidence score
     canvasCtx.fillStyle = '#00FF00';
     canvasCtx.font = '16px Arial';
-    canvasCtx.fillText(`Ball: ${(confidence * 100).toFixed(4)}%`, boxX, boxY - 5);
+    canvasCtx.fillText(`Ball: ${(confidence * 100).toFixed(1)}%`, boxX - boxWidth/2, boxY - boxHeight/2 - 5);
     
     // Draw crosshair at center
-    const centerX = boxX + boxWidth/2;
-    const centerY = boxY + boxHeight/2;
-    
     canvasCtx.beginPath();
-    canvasCtx.moveTo(centerX - 10, centerY);
-    canvasCtx.lineTo(centerX + 10, centerY);
-    canvasCtx.moveTo(centerX, centerY - 10);
-    canvasCtx.lineTo(centerX, centerY + 10);
+    canvasCtx.moveTo(boxX - 10, boxY);
+    canvasCtx.lineTo(boxX + 10, boxY);
+    canvasCtx.moveTo(boxX, boxY - 10);
+    canvasCtx.lineTo(boxX, boxY + 10);
     canvasCtx.stroke();
     
-    // Draw coordinate values for debugging
-    canvasCtx.fillStyle = '#FF0000';
-    canvasCtx.font = '12px Arial';
-    canvasCtx.fillText(`x: ${boxX.toFixed(1)}, y: ${boxY.toFixed(1)}`, boxX, boxY - 20);
-    canvasCtx.fillText(`w: ${boxWidth.toFixed(1)}, h: ${boxHeight.toFixed(1)}`, boxX, boxY - 35);
+    debugLog('Finished drawing detection', 'success');
 }
 
 // --- Camera Setup ---
