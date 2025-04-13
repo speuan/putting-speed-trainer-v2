@@ -325,69 +325,64 @@ function drawDetections(detection) {
     debugLog(`Drawing at: (${drawX.toFixed(1)}, ${drawY.toFixed(1)})`, 'info');
     
     try {
-        // Make drawings more visible
-        canvasCtx.lineWidth = 8;  // Even thicker
+        // Draw a large test circle at the detection point
+        canvasCtx.beginPath();
+        canvasCtx.arc(centerX, centerY, 50, 0, 2 * Math.PI);
+        canvasCtx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+        canvasCtx.fill();
         
-        // Draw outer glow (white)
-        canvasCtx.strokeStyle = '#FFFFFF';
+        // Draw extremely visible box
+        canvasCtx.lineWidth = 20;  // Much thicker
+        
+        // Outer glow (white)
+        canvasCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
         canvasCtx.strokeRect(drawX, drawY, boxWidth, boxHeight);
         
-        // Draw main box (green)
-        canvasCtx.strokeStyle = '#00FF00';
-        canvasCtx.lineWidth = 4;
+        // Inner box (bright red)
+        canvasCtx.strokeStyle = '#FF0000';
+        canvasCtx.lineWidth = 10;
         canvasCtx.strokeRect(drawX, drawY, boxWidth, boxHeight);
         
-        // Draw confidence score with better visibility
-        const text = `Ball: ${(confidence * 100).toFixed(1)}%`;
-        canvasCtx.font = 'bold 24px Arial';  // Even larger font
+        // Draw confidence score
+        const text = `${(confidence * 100).toFixed(1)}%`;
+        canvasCtx.font = 'bold 48px Arial';  // Much larger font
         
         // Text background
-        const padding = 10;
+        const padding = 20;
         const textMetrics = canvasCtx.measureText(text);
-        canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.8)';  // More opaque background
+        canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.8)';
         canvasCtx.fillRect(
             drawX, 
-            drawY - 40, 
+            drawY - 70, 
             textMetrics.width + padding * 2, 
-            35
+            60
         );
         
-        // Text with outline
-        canvasCtx.strokeStyle = '#000000';
-        canvasCtx.lineWidth = 3;
-        canvasCtx.strokeText(text, drawX + padding, drawY - 15);
-        canvasCtx.fillStyle = '#00FF00';
-        canvasCtx.fillText(text, drawX + padding, drawY - 15);
-        
-        // Draw large crosshair at center point
-        canvasCtx.beginPath();
-        canvasCtx.strokeStyle = '#FFFFFF';  // White outline
-        canvasCtx.lineWidth = 6;
-        // Horizontal line
-        canvasCtx.moveTo(centerX - 30, centerY);
-        canvasCtx.lineTo(centerX + 30, centerY);
-        // Vertical line
-        canvasCtx.moveTo(centerX, centerY - 30);
-        canvasCtx.lineTo(centerX, centerY + 30);
-        canvasCtx.stroke();
-        
-        // Inner crosshair
-        canvasCtx.beginPath();
-        canvasCtx.strokeStyle = '#00FF00';  // Green center
-        canvasCtx.lineWidth = 2;
-        // Horizontal line
-        canvasCtx.moveTo(centerX - 30, centerY);
-        canvasCtx.lineTo(centerX + 30, centerY);
-        // Vertical line
-        canvasCtx.moveTo(centerX, centerY - 30);
-        canvasCtx.lineTo(centerX, centerY + 30);
-        canvasCtx.stroke();
-        
-        // Draw debug point at center
+        // Text
         canvasCtx.fillStyle = '#FF0000';
+        canvasCtx.fillText(text, drawX + padding, drawY - 25);
+        
+        // Draw crosshair
+        canvasCtx.lineWidth = 10;
+        
+        // White outline
+        canvasCtx.strokeStyle = '#FFFFFF';
         canvasCtx.beginPath();
-        canvasCtx.arc(centerX, centerY, 4, 0, 2 * Math.PI);
-        canvasCtx.fill();
+        canvasCtx.moveTo(centerX - 50, centerY);
+        canvasCtx.lineTo(centerX + 50, centerY);
+        canvasCtx.moveTo(centerX, centerY - 50);
+        canvasCtx.lineTo(centerX, centerY + 50);
+        canvasCtx.stroke();
+        
+        // Red center
+        canvasCtx.strokeStyle = '#FF0000';
+        canvasCtx.lineWidth = 5;
+        canvasCtx.beginPath();
+        canvasCtx.moveTo(centerX - 50, centerY);
+        canvasCtx.lineTo(centerX + 50, centerY);
+        canvasCtx.moveTo(centerX, centerY - 50);
+        canvasCtx.lineTo(centerX, centerY + 50);
+        canvasCtx.stroke();
         
         debugLog('Drew all elements successfully', 'success');
         
@@ -465,9 +460,14 @@ async function drawVideoFrame() {
             debugLog(`Updated canvas dimensions to ${videoElement.videoWidth}x${videoElement.videoHeight}`, 'info');
         }
 
-        // Clear the canvas and draw the current video frame
-        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        // Draw the current video frame
         canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+
+        // Draw test pattern
+        canvasCtx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+        canvasCtx.fillRect(0, 0, 50, 50);  // Red square in top-left
+        canvasCtx.fillStyle = 'rgba(0, 255, 0, 0.5)';
+        canvasCtx.fillRect(canvasElement.width - 50, 0, 50, 50);  // Green square in top-right
 
         if (isRecording && isModelLoaded) {
             try {
@@ -478,7 +478,7 @@ async function drawVideoFrame() {
                 const detections = await detectBall(imageData);
                 
                 if (detections) {
-                    // Draw detection results AFTER video frame
+                    // Draw detection results
                     drawDetections(detections);
                     
                     // Log all coordinates for debugging
