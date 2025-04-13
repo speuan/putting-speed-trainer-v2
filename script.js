@@ -35,9 +35,10 @@ let lastDetections = []; // Store last N detections for smoothing
 const MAX_DETECTION_HISTORY = 5; // Number of frames to keep for smoothing
 const MIN_CONFIDENCE = 0.001; // Minimum confidence to consider a detection
 const IOU_THRESHOLD = 0.2; // Intersection over Union threshold for clustering
-const PROCESS_EVERY_N_FRAMES = 2; // Only process every 2nd frame
-const MODEL_INPUT_SIZE = 320; // Reduce from 640 to 320
+const PROCESS_EVERY_N_FRAMES = 3; // Process every 3rd frame instead
+const MODEL_INPUT_SIZE = 640; // Keep original size that model expects
 let frameCount = 0;
+let lastProcessedDetections = null; // Store last detection to show between processed frames
 
 // Add debug logging function
 function debugLog(message, type = 'info') {
@@ -120,12 +121,13 @@ async function detectBall(imageData) {
     }
     
     try {
+        // Use tf.tidy to automatically clean up tensors
         const tensor = tf.tidy(() => {
+            // Process image in smaller chunks
             const imageTensor = tf.browser.fromPixels(imageData);
             const normalized = tf.div(tf.cast(imageTensor, 'float32'), 255);
             const resized = tf.image.resizeBilinear(normalized, [MODEL_INPUT_SIZE, MODEL_INPUT_SIZE]);
-            const batched = resized.expandDims(0);
-            return batched;
+            return resized.expandDims(0);
         });
         
         const predictions = await model.predict(tensor);
@@ -137,8 +139,7 @@ async function detectBall(imageData) {
         const detections = processDetections(arrayPreds[0], MODEL_INPUT_SIZE);
         
         if (detections) {
-            const [x, y, w, h, conf] = detections;
-            debugLog(`Detection found: x=${x.toFixed(4)}, y=${y.toFixed(4)}, w=${w.toFixed(4)}, h=${h.toFixed(4)}, conf=${(conf * 100).toFixed(2)}%`, 'success');
+            lastProcessedDetections = detections; // Store for use between processed frames
         }
         
         return detections;
@@ -400,19 +401,25 @@ async function drawVideoFrame() {
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = canvasElement.width;
         tempCanvas.height = canvasElement.height;
-        const tempCtx = tempCanvas.getContext('2d');
+        const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
 
         // Draw the current video frame to temp canvas
         tempCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
 
         // Get frame data for detection from the temp canvas
-        let detections = null;
+        let currentDetections = null;
         if (isRecording && isModelLoaded) {
             try {
                 // Only process every Nth frame
                 if (frameCount % PROCESS_EVERY_N_FRAMES === 0) {
                     const imageData = tempCtx.getImageData(0, 0, canvasElement.width, canvasElement.height);
-                    detections = await detectBall(imageData);
+                    currentDetections = await detectBall(imageData);
+                    if (currentDetections) {
+                        lastProcessedDetections = currentDetections;
+                    }
+                } else if (lastProcessedDetections) {
+                    // Use the last successful detection for intermediate frames
+                    currentDetections = lastProcessedDetections;
                 }
                 frameCount++;
             } catch (error) {
@@ -425,12 +432,14 @@ async function drawVideoFrame() {
         canvasCtx.drawImage(tempCanvas, 0, 0);
 
         // If we have detections, draw them
-        if (detections) {
-            drawDetections(detections);
+        if (currentDetections) {
+            drawDetections(currentDetections);
         }
 
-        // Request the next frame
-        animationFrameId = requestAnimationFrame(drawVideoFrame);
+        // Request the next frame using setTimeout for better control
+        setTimeout(() => {
+            animationFrameId = requestAnimationFrame(drawVideoFrame);
+        }, 0);
     }
 }
 
