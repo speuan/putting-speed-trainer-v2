@@ -38,11 +38,18 @@ export async function loadModel() {
             
             debugLog(`Using backend: ${tf.getBackend()}`, 'info');
             
-            // Try loading from the correct path
-            const modelJsonUrl = './src/assets/my_model_web_model_2/model.json';
-            debugLog(`Loading model from correct path: ${modelJsonUrl}`, 'info');
+            // Use absolute URL paths for iOS Safari
+            const origin = window.location.origin;
+            const modelBasePath = `${origin}/src/assets/my_model_web_model_2/`;
+            const modelJsonUrl = `${modelBasePath}model.json`;
+            
+            debugLog(`Loading model from absolute path: ${modelJsonUrl}`, 'info');
             
             try {
+                // Log model location for debugging
+                debugLog(`Current URL: ${window.location.href}`, 'info');
+                debugLog(`Origin: ${origin}`, 'info');
+                
                 // Check if the model.json file exists
                 const response = await fetch(modelJsonUrl);
                 if (!response.ok) {
@@ -54,20 +61,24 @@ export async function loadModel() {
                 
                 // Create a modified version of the model JSON to fix path issues
                 if (modelJson.weightsManifest && modelJson.weightsManifest.length > 0) {
-                    // Fix the weight paths to use explicit relative paths
+                    // Log paths for debugging
+                    const originalPaths = JSON.stringify(modelJson.weightsManifest[0].paths);
+                    debugLog(`Original weight paths: ${originalPaths}`, 'info');
+                    
+                    // Fix the weight paths to use absolute URLs
                     for (let i = 0; i < modelJson.weightsManifest.length; i++) {
                         const manifest = modelJson.weightsManifest[i];
                         if (manifest.paths) {
-                            // Make sure all paths start with the model directory
+                            // Make all paths absolute with origin
                             modelJson.weightsManifest[i].paths = manifest.paths.map(path => {
-                                // If path doesn't include the directory, add it
-                                if (!path.includes('/')) {
-                                    return `./src/assets/my_model_web_model_2/${path}`;
-                                }
-                                return path;
+                                return `${modelBasePath}${path}`;
                             });
                         }
                     }
+                    
+                    // Log modified paths for debugging
+                    const modifiedPaths = JSON.stringify(modelJson.weightsManifest[0].paths);
+                    debugLog(`Modified weight paths: ${modifiedPaths}`, 'info');
                 }
                 
                 // Create a blob URL from the modified model JSON
@@ -75,14 +86,38 @@ export async function loadModel() {
                 const blobUrl = URL.createObjectURL(blob);
                 
                 debugLog('Loading model from prepared blob URL', 'info');
-                model = await tf.loadGraphModel(blobUrl, {
-                    onProgress: (fraction) => {
-                        debugLog(`Model loading progress: ${(fraction * 100).toFixed(1)}%`, 'info');
-                    }
-                });
                 
-                // Clean up the blob URL
-                URL.revokeObjectURL(blobUrl);
+                // Extra error handling
+                try {
+                    model = await tf.loadGraphModel(blobUrl, {
+                        onProgress: (fraction) => {
+                            debugLog(`Model loading progress: ${(fraction * 100).toFixed(1)}%`, 'info');
+                        }
+                    });
+                    
+                    debugLog('Model loaded successfully from blob', 'success');
+                } catch (modelLoadError) {
+                    debugLog(`Error loading model from blob: ${modelLoadError}`, 'error');
+                    
+                    // Try once more with direct URL approach
+                    debugLog('Trying direct URL approach...', 'info');
+                    model = await tf.loadGraphModel(modelJsonUrl, {
+                        fetchFunc: (url, options) => {
+                            // If URL is a relative path for a weight file, make it absolute
+                            if (url.includes('group1-shard')) {
+                                const absoluteUrl = `${modelBasePath}${url.split('/').pop()}`;
+                                debugLog(`Fetching from ${absoluteUrl} instead of ${url}`, 'info');
+                                return fetch(absoluteUrl, options);
+                            }
+                            return fetch(url, options);
+                        }
+                    });
+                    
+                    debugLog('Model loaded successfully with direct URL', 'success');
+                } finally {
+                    // Clean up the blob URL
+                    URL.revokeObjectURL(blobUrl);
+                }
                 
                 // Test the model
                 debugLog('Testing model...', 'info');
