@@ -55,10 +55,11 @@
             max-width: 640px;
             display: flex;
             justify-content: center;
+            flex-wrap: wrap; /* Allow wrap on smaller screens */
         }
         button {
             padding: 15px 30px;
-            margin: 0 10px;
+            margin: 0 10px 10px 10px; /* Add bottom margin for wrapping */
             border: none;
             border-radius: 8px;
             background-color: #007bff;
@@ -88,16 +89,41 @@
             margin-top: 20px;
             -webkit-overflow-scrolling: touch;
         }
+        /* Add debug buttons */
+        #debugControls {
+            margin: 10px 0;
+            width: 100%;
+            max-width: 640px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .debug-button {
+            background-color: #555;
+            margin: 5px;
+            font-size: 14px;
+            padding: 10px 15px;
+        }
         /* Responsive design for iOS devices */
         @media only screen and (max-width: 767px) {
             #videoContainer {
                 width: 95%;
                 height: auto;
             }
+            body {
+                padding: 10px;
+            }
             button {
-                flex: 1;
                 padding: 15px 0;
-                margin: 0 5px;
+                margin: 0 5px 10px 5px;
+                min-width: 140px;
+            }
+            #controls {
+                flex-direction: row;
+            }
+            h1 {
+                font-size: 24px;
+                margin: 10px 0;
             }
         }
     </style>
@@ -118,6 +144,13 @@
     <div id="controls">
         <button id="startButton" type="button">Start Camera</button>
         <button id="stopButton" type="button" disabled>Stop Camera</button>
+    </div>
+
+    <!-- Debug controls for iOS testing -->
+    <div id="debugControls">
+        <button id="checkModelButton" type="button" class="debug-button">Check Model</button>
+        <button id="testTensorButton" type="button" class="debug-button">Test Tensor</button>
+        <button id="clearCanvasButton" type="button" class="debug-button">Clear Canvas</button>
     </div>
 
     <div id="debugPanel"></div>
@@ -156,8 +189,35 @@
     <!-- Debug script -->
     <script>
         window.addEventListener('DOMContentLoaded', () => {
+            const debugPanel = document.getElementById('debugPanel');
+            
+            function addDebugMessage(message, type = 'info') {
+                const colors = {
+                    info: '#fff',
+                    error: '#ff4444',
+                    success: '#44ff44',
+                    warning: '#ffff44'
+                };
+                
+                const entry = document.createElement('div');
+                entry.style.color = colors[type] || colors.info;
+                entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+                debugPanel.insertBefore(entry, debugPanel.firstChild);
+                
+                // Keep only last 20 messages
+                while (debugPanel.children.length > 20) {
+                    debugPanel.removeChild(debugPanel.lastChild);
+                }
+                
+                // Also log to console
+                console.log(message);
+            }
+            
+            // Log device info
             console.log('DOM loaded');
+            addDebugMessage('App started', 'info');
             console.log('User Agent:', navigator.userAgent);
+            addDebugMessage(`User Agent: ${navigator.userAgent}`, 'info');
             
             const video = document.getElementById('videoFeed');
             const canvas = document.getElementById('outputCanvas');
@@ -165,13 +225,93 @@
             console.log('Canvas element:', canvas);
             
             // Add video element event listeners for debugging
-            video.addEventListener('play', () => console.log('Video play event'));
-            video.addEventListener('pause', () => console.log('Video pause event'));
-            video.addEventListener('loadedmetadata', () => console.log('Video loadedmetadata event'));
-            video.addEventListener('loadeddata', () => console.log('Video loadeddata event'));
-            video.addEventListener('playing', () => console.log('Video playing event'));
-            video.addEventListener('waiting', () => console.log('Video waiting event'));
-            video.addEventListener('error', (e) => console.error('Video error event:', e));
+            video.addEventListener('play', () => {
+                console.log('Video play event');
+                addDebugMessage('Video play event', 'success');
+            });
+            video.addEventListener('pause', () => {
+                console.log('Video pause event');
+                addDebugMessage('Video pause event', 'info');
+            });
+            video.addEventListener('loadedmetadata', () => {
+                console.log('Video loadedmetadata event');
+                addDebugMessage('Video metadata loaded', 'info');
+            });
+            video.addEventListener('loadeddata', () => {
+                console.log('Video loadeddata event');
+                addDebugMessage('Video data loaded', 'info');
+            });
+            video.addEventListener('playing', () => {
+                console.log('Video playing event');
+                addDebugMessage('Video playing', 'success');
+            });
+            video.addEventListener('waiting', () => {
+                console.log('Video waiting event');
+                addDebugMessage('Video waiting', 'warning');
+            });
+            video.addEventListener('error', (e) => {
+                console.error('Video error event:', e);
+                addDebugMessage(`Video error: ${e.target.error ? e.target.error.message : 'Unknown error'}`, 'error');
+            });
+            
+            // Add iOS debug controls
+            const checkModelButton = document.getElementById('checkModelButton');
+            const testTensorButton = document.getElementById('testTensorButton');
+            const clearCanvasButton = document.getElementById('clearCanvasButton');
+            
+            checkModelButton.addEventListener('click', async () => {
+                try {
+                    addDebugMessage('Checking model URL...', 'info');
+                    const modelUrl = './src/assets/my_model_web_model_2/model.json';
+                    
+                    const response = await fetch(modelUrl, { method: 'HEAD' });
+                    if (response.ok) {
+                        addDebugMessage(`Model URL check: OK (${response.status})`, 'success');
+                        
+                        // Try to load model JSON
+                        try {
+                            const jsonResponse = await fetch(modelUrl);
+                            const modelJson = await jsonResponse.json();
+                            addDebugMessage('Model JSON parsed successfully', 'success');
+                        } catch (jsonError) {
+                            addDebugMessage(`Model JSON parse error: ${jsonError.message}`, 'error');
+                        }
+                    } else {
+                        addDebugMessage(`Model URL check failed: ${response.status} ${response.statusText}`, 'error');
+                    }
+                } catch (error) {
+                    addDebugMessage(`Model check error: ${error.message}`, 'error');
+                }
+            });
+            
+            testTensorButton.addEventListener('click', async () => {
+                try {
+                    addDebugMessage('Creating test tensor...', 'info');
+                    const tensor = tf.zeros([1, 224, 224, 3]);
+                    addDebugMessage(`Test tensor created: ${tensor.shape}`, 'success');
+                    
+                    // Try basic operations
+                    addDebugMessage('Testing tensor operations...', 'info');
+                    const scaled = tf.mul(tensor, tf.scalar(255));
+                    addDebugMessage('Multiplication operation succeeded', 'success');
+                    
+                    // Clean up
+                    tf.dispose([tensor, scaled]);
+                    addDebugMessage('Tensors disposed', 'success');
+                } catch (error) {
+                    addDebugMessage(`Tensor test error: ${error.message}`, 'error');
+                }
+            });
+            
+            clearCanvasButton.addEventListener('click', () => {
+                try {
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    addDebugMessage('Canvas cleared', 'info');
+                } catch (error) {
+                    addDebugMessage(`Clear canvas error: ${error.message}`, 'error');
+                }
+            });
         });
     </script>
 
