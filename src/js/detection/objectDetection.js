@@ -8,6 +8,7 @@ let model = null;
 let isModelLoaded = false;
 let modelLoadingPromise = null;
 
+// Custom model loader to handle weight files correctly
 export async function loadModel() {
     // If model loading is already in progress, return the existing promise
     if (modelLoadingPromise) {
@@ -37,41 +38,64 @@ export async function loadModel() {
             
             debugLog(`Using backend: ${tf.getBackend()}`, 'info');
             
-            // Use absolute path for model URL to ensure proper shard URL resolution
-            // Get base URL from current document
-            const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
-            const modelUrl = new URL('./src/assets/my_model_web_model_2/model.json', baseUrl).href;
+            // STEP 1: First fetch and parse the model.json file ourselves
+            const modelJsonUrl = './src/assets/my_model_web_model_2/model.json';
+            debugLog(`Fetching model JSON from: ${modelJsonUrl}`, 'info');
             
-            debugLog(`Attempting to load model from: ${modelUrl}`, 'info');
-            
-            // First check if the model.json file is accessible
+            let modelJson;
             try {
-                const response = await fetch(modelUrl, { method: 'HEAD' });
+                const response = await fetch(modelJsonUrl);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                debugLog('Model JSON file is accessible', 'success');
-            } catch (fetchError) {
-                debugLog(`Error checking model.json: ${fetchError}`, 'error');
-                throw new Error(`Could not access model.json file: ${fetchError.message}`);
+                modelJson = await response.json();
+                debugLog('Model JSON loaded successfully', 'success');
+            } catch (jsonError) {
+                debugLog(`Error loading model JSON: ${jsonError}`, 'error');
+                throw new Error(`Could not load model.json: ${jsonError.message}`);
             }
             
-            // Use loadGraphModel with custom loading options
-            model = await tf.loadGraphModel(modelUrl, {
-                onProgress: (fraction) => {
-                    debugLog(`Model loading progress: ${(fraction * 100).toFixed(1)}%`, 'info');
-                },
-                // Custom URL loader to handle relative paths properly
-                weightUrlConverter: (weightUrl) => {
-                    // Convert relative paths to absolute
-                    if (weightUrl.startsWith('group')) {
-                        // Get model directory from model URL
-                        const modelDir = modelUrl.substring(0, modelUrl.lastIndexOf('/') + 1);
-                        return new URL(weightUrl, modelDir).href;
+            // STEP 2: Modify the weights paths to use absolute URLs
+            if (modelJson.weightsManifest && modelJson.weightsManifest.length > 0) {
+                // Get the base URL for resolving relative paths
+                const baseModelPath = './src/assets/my_model_web_model_2/';
+                
+                // Replace each relative path with an absolute one
+                for (let i = 0; i < modelJson.weightsManifest.length; i++) {
+                    const manifest = modelJson.weightsManifest[i];
+                    if (manifest.paths) {
+                        // Replace all paths with absolute URLs
+                        modelJson.weightsManifest[i].paths = manifest.paths.map(path => {
+                            return `${baseModelPath}${path}`;
+                        });
                     }
-                    return weightUrl;
                 }
-            });
+                
+                debugLog('Modified weight paths to use absolute URLs', 'success');
+            }
+            
+            // STEP 3: Load the model using the modified JSON
+            try {
+                debugLog('Loading model with modified paths...', 'info');
+                // Convert model JSON to a blob
+                const modelJsonBlob = new Blob([JSON.stringify(modelJson)], {type: 'application/json'});
+                const modelJsonUrl = URL.createObjectURL(modelJsonBlob);
+                
+                // Load from the blob URL (all paths are now absolute)
+                model = await tf.loadGraphModel(modelJsonUrl, {
+                    onProgress: (fraction) => {
+                        debugLog(`Model loading progress: ${(fraction * 100).toFixed(1)}%`, 'info');
+                    }
+                });
+                
+                // Clean up the blob URL
+                URL.revokeObjectURL(modelJsonUrl);
+                
+                debugLog('Model loaded successfully', 'success');
+            } catch (loadError) {
+                debugLog(`Error loading model with modified paths: ${loadError}`, 'error');
+                throw loadError;
+            }
             
             // Test the model with a small tensor
             debugLog('Testing model...', 'info');
@@ -87,7 +111,8 @@ export async function loadModel() {
                 throw new Error(`Model test failed: ${predictError.message}`);
             } finally {
                 // Clean up tensors
-                tf.dispose([dummyTensor, testResult]);
+                if (dummyTensor) dummyTensor.dispose();
+                if (testResult) testResult.dispose();
             }
             
             isModelLoaded = true;

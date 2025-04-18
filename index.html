@@ -196,6 +196,7 @@
     <div id="debugControls">
         <button id="permissionButton" type="button" class="debug-button">Request Permission</button>
         <button id="checkModelButton" type="button" class="debug-button">Check Model</button>
+        <button id="loadModelButton" type="button" class="debug-button">Load Model</button>
         <button id="testTensorButton" type="button" class="debug-button">Test Tensor</button>
         <button id="clearCanvasButton" type="button" class="debug-button">Clear Canvas</button>
     </div>
@@ -304,6 +305,7 @@
             // Add iOS debug controls
             const permissionButton = document.getElementById('permissionButton');
             const checkModelButton = document.getElementById('checkModelButton');
+            const loadModelButton = document.getElementById('loadModelButton');
             const testTensorButton = document.getElementById('testTensorButton');
             const clearCanvasButton = document.getElementById('clearCanvasButton');
             
@@ -331,6 +333,23 @@
                     addDebugMessage(`Permission error: ${error.message}`, 'error');
                     console.error('Permission error:', error);
                     alert('Camera permission was denied. Please enable camera access in your browser settings.');
+                }
+            });
+            
+            // Manual model loading button for testing
+            loadModelButton.addEventListener('click', async () => {
+                addDebugMessage('Manually loading model...', 'info');
+                
+                try {
+                    const { loadModel } = await import('./src/js/detection/objectDetection.js');
+                    
+                    // Try loading the model
+                    await loadModel();
+                    addDebugMessage('Model loaded manually', 'success');
+                    
+                } catch (error) {
+                    addDebugMessage(`Manual model load error: ${error.message}`, 'error');
+                    console.error('Model load error:', error);
                 }
             });
             
