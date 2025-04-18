@@ -95,6 +95,32 @@
 
     <!-- Load TensorFlow.js first -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0"></script>
+    
+    <!-- Initialize TensorFlow.js -->
+    <script>
+        // Check TensorFlow.js initialization
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                console.log('Initializing TensorFlow.js...');
+                // Wait for TensorFlow.js to be ready
+                await tf.ready();
+                console.log('TensorFlow.js initialized successfully');
+                console.log('TensorFlow.js version:', tf.version.tfjs);
+                console.log('Backend:', tf.getBackend());
+                
+                // Test tensor operations
+                const testTensor = tf.tensor2d([[1, 2], [3, 4]]);
+                console.log('Test tensor created:', testTensor.shape);
+                testTensor.dispose();
+                
+                // Set a global flag that our main script can check
+                window.tensorflowReady = true;
+            } catch (error) {
+                console.error('TensorFlow.js initialization failed:', error);
+                alert('Failed to initialize TensorFlow.js. The application may not work correctly.');
+            }
+        });
+    </script>
 
     <!-- Debug script -->
     <script>
@@ -116,6 +142,7 @@
         });
     </script>
 
+    <!-- Load our main script last -->
     <script type="module" src="src/js/main.js"></script>
 </body>
 </html>

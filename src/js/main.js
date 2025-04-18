@@ -43,6 +43,26 @@ function verifyElements() {
 async function init() {
     console.log('Initializing application...');
     try {
+        // Wait for TensorFlow.js to be ready
+        if (!window.tensorflowReady) {
+            console.log('Waiting for TensorFlow.js to initialize...');
+            await new Promise((resolve) => {
+                const checkTf = setInterval(() => {
+                    if (window.tensorflowReady) {
+                        clearInterval(checkTf);
+                        resolve();
+                    }
+                }, 100);
+                
+                // Timeout after 10 seconds
+                setTimeout(() => {
+                    clearInterval(checkTf);
+                    throw new Error('TensorFlow.js initialization timeout');
+                }, 10000);
+            });
+        }
+        console.log('TensorFlow.js is ready');
+
         // Verify DOM elements
         verifyElements();
         console.log('All required elements found');
@@ -76,6 +96,7 @@ async function init() {
         debugLog(`Failed to initialize: ${error.message}`, 'error');
         state.error = error;
         updateButtonStates();
+        alert('Failed to initialize the application. Please check the console for details.');
     }
 }
 
