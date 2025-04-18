@@ -4,29 +4,63 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Golf Putting Speed Trainer</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#4CAF50"> <!-- Example theme color -->
+    <link rel="stylesheet" href="src/styles/style.css">
+    <link rel="manifest" href="config/manifest.json">
+    <meta name="theme-color" content="#4CAF50">
 </head>
 <body>
-    <h1>Golf Putting Speed Trainer</h1>
     <div id="container">
-        <!-- Ensure video plays inline on iOS & set initial dimensions -->
         <video id="videoFeed" width="640" height="640" playsinline autoplay muted></video>
         <canvas id="outputCanvas" width="640" height="640"></canvas>
+        <div class="setup-controls">
+            <button id="expandSetup" class="expand-button" type="button" aria-label="Show instructions">Show Instructions</button>
+            <div class="setup-buttons">
+                <button id="resetSetupButton">Reset</button>
+                <button id="completeSetupButton" disabled>Complete</button>
+            </div>
+        </div>
     </div>
+    <div id="setupOverlay" class="overlay">
+        <div class="setup-instructions">
+            <div class="setup-header">
+                <h2>Marker Setup</h2>
+                <button id="minimizeSetup" class="minimize-button" type="button" aria-label="Minimize instructions">−</button>
+            </div>
+            <div class="setup-content">
+                <p>Tap anywhere on the camera view to mark each point in sequence:</p>
+                <ol id="setupSteps">
+                    <li>Starting ball position</li>
+                    <li>First marker - Left point (3ft from ball, ½ft left of path)</li>
+                    <li>First marker - Right point (1ft from left point, across path)</li>
+                    <li>Second marker - Left point (6ft from ball, ½ft left of path)</li>
+                    <li>Second marker - Right point (1ft from left point, across path)</li>
+                </ol>
+                <div class="setup-tips">
+                    <p><strong>Tips:</strong></p>
+                    <ul>
+                        <li>Place physical markers (tees, coins, etc.) at these points</li>
+                        <li>Ensure camera can see all markers clearly</li>
+                        <li>Keep phone steady during setup</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    <h1>Golf Putting Speed Trainer</h1>
     <div id="controls">
-        <button id="recordButton">Record</button>
+        <button id="recordButton" disabled>Record</button>
         <button id="stopButton" disabled>Stop</button>
-        <button id="playbackButton" disabled>Playback</button> <!-- Placeholder -->
+        <button id="playbackButton" disabled>Playback</button>
     </div>
+    
     <!-- TensorFlow.js Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js"></script>
+    
     <!-- Service Worker Registration -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
+                navigator.serviceWorker.register('./config/sw.js')
                     .then(registration => {
                         console.log('ServiceWorker registration successful');
                     })
@@ -36,7 +70,8 @@
             });
         }
     </script>
-    <!-- Your application code -->
-    <script src="script.js"></script>
+    
+    <!-- Application Modules -->
+    <script type="module" src="src/js/main.js"></script>
 </body>
 </html>
