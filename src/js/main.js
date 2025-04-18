@@ -8,9 +8,16 @@ const canvasCtx = canvasElement?.getContext('2d', { willReadFrequently: true });
 const startButton = document.getElementById('startButton');
 const stopButton = document.getElementById('stopButton');
 
+// State management
+const state = {
+    isModelLoaded: false,
+    isCameraReady: false,
+    isProcessing: false,
+    stream: null,
+    error: null
+};
+
 // State variables
-let stream = null;
-let isProcessing = false;
 let animationFrameId = null;
 let frameCount = 0;
 const PROCESS_EVERY_N_FRAMES = 3; // Process every 3rd frame for better performance
@@ -46,63 +53,84 @@ async function init() {
         }
         console.log('Camera API is supported');
 
-        // Load the model
-        await loadModel();
-        console.log('Model loaded successfully');
+        // Load the model in the background
+        loadModel()
+            .then(() => {
+                state.isModelLoaded = true;
+                console.log('Model loaded successfully');
+                debugLog('Model loaded successfully', 'success');
+                updateButtonStates();
+            })
+            .catch(error => {
+                console.error('Model loading error:', error);
+                debugLog(`Model loading failed: ${error.message}`, 'error');
+                state.error = error;
+                updateButtonStates();
+            });
 
-        // Enable start button
-        startButton.disabled = false;
-        
+        // Enable start button immediately - model will load in background
+        updateButtonStates();
         debugLog('Application initialized successfully', 'success');
     } catch (error) {
         console.error('Initialization error:', error);
         debugLog(`Failed to initialize: ${error.message}`, 'error');
-        alert('Failed to initialize the application. Please check the debug panel for details.');
+        state.error = error;
+        updateButtonStates();
     }
+}
+
+function updateButtonStates() {
+    // Start button enabled if camera API available and no processing
+    startButton.disabled = state.isProcessing || !navigator.mediaDevices?.getUserMedia || !!state.error;
+    // Stop button enabled only when processing
+    stopButton.disabled = !state.isProcessing;
 }
 
 // Start camera and processing
 async function startCamera() {
     console.log('Starting camera...');
     try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            console.error('Camera API not supported');
-            throw new Error('Camera API is not supported in your browser');
-        }
-
-        console.log('Camera API supported');
-
         // Request camera with specific constraints
         const constraints = {
-            video: true,  // Simplified constraints first
+            video: {
+                facingMode: 'environment',  // Try environment camera first
+                width: { ideal: MODEL_INPUT_SIZE },
+                height: { ideal: MODEL_INPUT_SIZE }
+            },
             audio: false
         };
         
         console.log('Requesting camera with constraints:', constraints);
         
         // Stop any existing stream
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
+        if (state.stream) {
+            state.stream.getTracks().forEach(track => track.stop());
         }
         
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        console.log('Got camera stream:', stream);
+        state.stream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log('Got camera stream:', state.stream);
         
-        videoElement.srcObject = stream;
+        videoElement.srcObject = state.stream;
         console.log('Set video source');
         
         // Wait for video to be ready
-        await new Promise((resolve) => {
+        await new Promise((resolve, reject) => {
+            const timeoutId = setTimeout(() => {
+                reject(new Error('Video loading timed out'));
+            }, 10000); // 10 second timeout
+
             videoElement.onloadedmetadata = () => {
                 console.log('Video metadata loaded');
                 videoElement.play()
                     .then(() => {
+                        clearTimeout(timeoutId);
                         console.log('Video playback started');
                         resolve();
                     })
                     .catch(err => {
+                        clearTimeout(timeoutId);
                         console.error('Video playback failed:', err);
-                        throw err;
+                        reject(err);
                     });
             };
         });
@@ -112,27 +140,56 @@ async function startCamera() {
         canvasElement.height = videoElement.videoHeight;
         console.log(`Canvas size set to ${canvasElement.width}x${canvasElement.height}`);
         
-        // Update button states
-        startButton.disabled = true;
-        stopButton.disabled = false;
+        // Update state and buttons
+        state.isCameraReady = true;
+        state.isProcessing = true;
+        updateButtonStates();
         
         // Start processing frames
-        isProcessing = true;
         processFrame();
         
         debugLog('Camera started successfully', 'success');
     } catch (error) {
         console.error('Camera start error:', error);
         debugLog(`Error accessing camera: ${error.message}`, 'error');
-        alert(`Camera error: ${error.message}. Please check console for details.`);
+        state.error = error;
+        updateButtonStates();
+        
+        // Try fallback to any available camera
+        if (error.name === 'OverconstrainedError' || error.name === 'NotFoundError') {
+            try {
+                const fallbackConstraints = {
+                    video: true,
+                    audio: false
+                };
+                
+                state.stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+                videoElement.srcObject = state.stream;
+                await videoElement.play();
+                
+                state.isCameraReady = true;
+                state.isProcessing = true;
+                updateButtonStates();
+                
+                processFrame();
+                
+                debugLog('Camera started with fallback settings', 'warning');
+            } catch (fallbackError) {
+                console.error('Fallback camera error:', fallbackError);
+                debugLog(`Fallback camera failed: ${fallbackError.message}`, 'error');
+                alert('Could not access any camera. Please check permissions and try again.');
+            }
+        } else {
+            alert(`Camera error: ${error.message}. Please check console for details.`);
+        }
     }
 }
 
 // Stop camera and processing
 function stopCamera() {
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        videoElement.srcObject = null;
+    if (state.stream) {
+        state.stream.getTracks().forEach(track => track.stop());
+        state.stream = null;
     }
     
     if (animationFrameId) {
@@ -140,9 +197,9 @@ function stopCamera() {
         animationFrameId = null;
     }
     
-    isProcessing = false;
-    startButton.disabled = false;
-    stopButton.disabled = true;
+    state.isProcessing = false;
+    state.isCameraReady = false;
+    updateButtonStates();
     
     // Clear the canvas
     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
@@ -152,7 +209,7 @@ function stopCamera() {
 
 // Process each frame
 async function processFrame() {
-    if (!isProcessing) return;
+    if (!state.isProcessing) return;
     
     if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
         // Only process every Nth frame
