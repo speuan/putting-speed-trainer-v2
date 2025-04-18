@@ -19,7 +19,10 @@ export function createDebugPanel() {
     return debugPanel;
 }
 
-export function debugLog(debugPanel, message, type = 'info') {
+export function debugLog(message, type = 'info') {
+    const debugPanel = document.getElementById('debugPanel');
+    if (!debugPanel) return;
+
     const colors = {
         info: '#fff',
         error: '#ff4444',

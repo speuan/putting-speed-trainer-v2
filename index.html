@@ -3,75 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Golf Putting Speed Trainer</title>
-    <link rel="stylesheet" href="src/styles/style.css">
-    <link rel="manifest" href="config/manifest.json">
-    <meta name="theme-color" content="#4CAF50">
+    <title>Ball & Coin Detector</title>
+    <link rel="stylesheet" href="src/css/styles.css">
+    <!-- TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        #videoContainer {
+            position: relative;
+            margin: 20px 0;
+        }
+        #videoFeed {
+            display: none;
+        }
+        #outputCanvas {
+            border: 2px solid #333;
+            border-radius: 8px;
+            max-width: 100%;
+            height: auto;
+        }
+        #controls {
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 0 10px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #debugPanel {
+            width: 100%;
+            max-width: 640px;
+            height: 200px;
+            overflow-y: auto;
+            background-color: #1e1e1e;
+            color: #ffffff;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            margin-top: 20px;
+        }
+    </style>
 </head>
 <body>
-    <div id="container">
-        <video id="videoFeed" width="640" height="640" playsinline autoplay muted></video>
-        <canvas id="outputCanvas" width="640" height="640"></canvas>
-        <div class="setup-controls">
-            <button id="expandSetup" class="expand-button" type="button" aria-label="Show instructions">Show Instructions</button>
-            <div class="setup-buttons">
-                <button id="resetSetupButton">Reset</button>
-                <button id="completeSetupButton" disabled>Complete</button>
-            </div>
-        </div>
+    <h1>Ball & Coin Detector</h1>
+    
+    <div id="videoContainer">
+        <video id="videoFeed" playsinline></video>
+        <canvas id="outputCanvas"></canvas>
     </div>
-    <div id="setupOverlay" class="overlay">
-        <div class="setup-instructions">
-            <div class="setup-header">
-                <h2>Marker Setup</h2>
-                <button id="minimizeSetup" class="minimize-button" type="button" aria-label="Minimize instructions">−</button>
-            </div>
-            <div class="setup-content">
-                <p>Tap anywhere on the camera view to mark each point in sequence:</p>
-                <ol id="setupSteps">
-                    <li>Starting ball position</li>
-                    <li>First marker - Left point (3ft from ball, ½ft left of path)</li>
-                    <li>First marker - Right point (1ft from left point, across path)</li>
-                    <li>Second marker - Left point (6ft from ball, ½ft left of path)</li>
-                    <li>Second marker - Right point (1ft from left point, across path)</li>
-                </ol>
-                <div class="setup-tips">
-                    <p><strong>Tips:</strong></p>
-                    <ul>
-                        <li>Place physical markers (tees, coins, etc.) at these points</li>
-                        <li>Ensure camera can see all markers clearly</li>
-                        <li>Keep phone steady during setup</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </div>
-    <h1>Golf Putting Speed Trainer</h1>
+
     <div id="controls">
-        <button id="recordButton" disabled>Record</button>
-        <button id="stopButton" disabled>Stop</button>
-        <button id="playbackButton" disabled>Playback</button>
+        <button id="startButton">Start Camera</button>
+        <button id="stopButton" disabled>Stop Camera</button>
     </div>
-    
-    <!-- TensorFlow.js Libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js"></script>
-    
-    <!-- Service Worker Registration -->
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./config/sw.js')
-                    .then(registration => {
-                        console.log('ServiceWorker registration successful');
-                    })
-                    .catch(err => {
-                        console.log('ServiceWorker registration failed: ', err);
-                    });
-            });
-        }
-    </script>
-    
-    <!-- Application Modules -->
+
+    <div id="debugPanel"></div>
+
     <script type="module" src="src/js/main.js"></script>
 </body>
 </html>

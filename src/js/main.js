@@ -1,129 +1,151 @@
-import { createDebugPanel, debugLog } from './utils/debug.js';
-import { loadModel, detectBall, MODEL_INPUT_SIZE, PROCESS_EVERY_N_FRAMES } from './detection/ballDetection.js';
+import { debugLog } from './utils/debug.js';
+import { loadModel, detectObjects, drawDetections, MODEL_INPUT_SIZE } from './detection/objectDetection.js';
 
 // Get DOM elements
 const videoElement = document.getElementById('videoFeed');
 const canvasElement = document.getElementById('outputCanvas');
 const canvasCtx = canvasElement.getContext('2d', { willReadFrequently: true });
-const recordButton = document.getElementById('recordButton');
+const startButton = document.getElementById('startButton');
 const stopButton = document.getElementById('stopButton');
-const playbackButton = document.getElementById('playbackButton');
-
-// Initialize debug panel
-const debugPanel = createDebugPanel();
 
 // State variables
 let stream = null;
-let isRecording = false;
+let isProcessing = false;
 let animationFrameId = null;
 let frameCount = 0;
+const PROCESS_EVERY_N_FRAMES = 3; // Process every 3rd frame for better performance
 
 // Initialize the application
 async function init() {
     try {
         // Load the model
-        await loadModel(debugPanel);
-        recordButton.disabled = false;
+        await loadModel();
+        startButton.disabled = false;
     } catch (error) {
         alert('Failed to initialize the application. Check debug panel for details.');
     }
 }
 
-// Start recording
-async function startRecording() {
+// Start camera and processing
+async function startCamera() {
     try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        // Request camera with specific constraints
+        const constraints = {
             video: {
-                width: MODEL_INPUT_SIZE,
-                height: MODEL_INPUT_SIZE,
-                facingMode: 'environment'
+                facingMode: 'environment',
+                width: { ideal: MODEL_INPUT_SIZE },
+                height: { ideal: MODEL_INPUT_SIZE }
             }
-        });
+        };
         
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
         videoElement.srcObject = stream;
-        isRecording = true;
-        recordButton.disabled = true;
+        await videoElement.play();
+        
+        // Set canvas size to match video
+        canvasElement.width = videoElement.videoWidth;
+        canvasElement.height = videoElement.videoHeight;
+        
+        // Update button states
+        startButton.disabled = true;
         stopButton.disabled = false;
         
         // Start processing frames
+        isProcessing = true;
         processFrame();
-    } catch (error) {
-        debugLog(debugPanel, `Error accessing camera: ${error.message}`, 'error');
-        alert('Failed to access camera. Check debug panel for details.');
-    }
-}
-
-// Process video frames
-function processFrame() {
-    if (!isRecording) return;
-    
-    if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
-        // Draw the video frame to the canvas
-        canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
         
-        // Only process every Nth frame
-        if (frameCount % PROCESS_EVERY_N_FRAMES === 0) {
-            detectBall(debugPanel, canvasElement)
-                .then(detections => {
-                    if (detections) {
-                        // Draw detection box
-                        const [x, y, w, h, confidence] = detections;
-                        const boxX = x * canvasElement.width;
-                        const boxY = y * canvasElement.height;
-                        const boxW = w * canvasElement.width;
-                        const boxH = h * canvasElement.height;
-                        
-                        canvasCtx.strokeStyle = '#00FF00';
-                        canvasCtx.lineWidth = 2;
-                        canvasCtx.strokeRect(
-                            boxX - boxW/2,
-                            boxY - boxH/2,
-                            boxW,
-                            boxH
-                        );
-                        
-                        // Draw confidence score
-                        canvasCtx.fillStyle = '#00FF00';
-                        canvasCtx.font = '16px Arial';
-                        canvasCtx.fillText(
-                            `${(confidence * 100).toFixed(1)}%`,
-                            boxX - boxW/2,
-                            boxY - boxH/2 - 5
-                        );
+        debugLog('Camera started successfully', 'success');
+    } catch (error) {
+        debugLog(`Error accessing camera: ${error.message}`, 'error');
+        if (error.name === 'OverconstrainedError' || error.name === 'NotFoundError') {
+            // Try fallback to any available camera
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: {
+                        width: { ideal: MODEL_INPUT_SIZE },
+                        height: { ideal: MODEL_INPUT_SIZE }
                     }
-                })
-                .catch(error => {
-                    debugLog(debugPanel, `Error in detection: ${error.message}`, 'error');
                 });
+                videoElement.srcObject = stream;
+                await videoElement.play();
+                
+                canvasElement.width = videoElement.videoWidth;
+                canvasElement.height = videoElement.videoHeight;
+                
+                startButton.disabled = true;
+                stopButton.disabled = false;
+                
+                isProcessing = true;
+                processFrame();
+                
+                debugLog('Camera started with fallback settings', 'warning');
+            } catch (fallbackError) {
+                debugLog(`Error accessing fallback camera: ${fallbackError.message}`, 'error');
+                alert('Could not access any camera. Please check permissions.');
+            }
+        } else {
+            alert('Failed to start camera. Check debug panel for details.');
         }
-        frameCount++;
     }
-    
-    animationFrameId = requestAnimationFrame(processFrame);
 }
 
-// Stop recording
-function stopRecording() {
-    isRecording = false;
+// Stop camera and processing
+function stopCamera() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        videoElement.srcObject = null;
+    }
+    
     if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
         animationFrameId = null;
     }
     
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        stream = null;
+    isProcessing = false;
+    startButton.disabled = false;
+    stopButton.disabled = true;
+    
+    // Clear the canvas
+    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    
+    debugLog('Camera stopped', 'info');
+}
+
+// Process each frame
+async function processFrame() {
+    if (!isProcessing) return;
+    
+    if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
+        // Only process every Nth frame
+        if (frameCount % PROCESS_EVERY_N_FRAMES === 0) {
+            try {
+                // Draw the current frame to the canvas
+                canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+                
+                // Get the frame data
+                const imageData = canvasCtx.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                
+                // Detect objects
+                const detections = await detectObjects(imageData);
+                
+                if (detections && detections.length > 0) {
+                    // Draw detections
+                    drawDetections(canvasCtx, detections, canvasElement.width, canvasElement.height);
+                }
+            } catch (error) {
+                debugLog(`Error processing frame: ${error.message}`, 'error');
+            }
+        }
+        frameCount++;
     }
     
-    videoElement.srcObject = null;
-    recordButton.disabled = false;
-    stopButton.disabled = true;
-    playbackButton.disabled = false;
+    // Request next frame
+    animationFrameId = requestAnimationFrame(processFrame);
 }
 
 // Event listeners
-recordButton.addEventListener('click', startRecording);
-stopButton.addEventListener('click', stopRecording);
+startButton.addEventListener('click', startCamera);
+stopButton.addEventListener('click', stopCamera);
 
-// Initialize the application
-init(); 
+// Initialize the application when the page loads
+window.addEventListener('load', init); 
