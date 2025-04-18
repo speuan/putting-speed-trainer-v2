@@ -39,6 +39,56 @@ function verifyElements() {
     }
 }
 
+// Check if model files are accessible
+async function checkModelFiles() {
+    try {
+        debugLog('Checking model files...', 'info');
+        const modelUrl = './src/assets/my_model_web_model_2/model.json';
+        
+        // First check the model.json file
+        try {
+            const response = await fetch(modelUrl, { method: 'HEAD' });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            debugLog('Model JSON is accessible', 'success');
+        } catch (fetchError) {
+            debugLog(`Error accessing model.json: ${fetchError}`, 'error');
+            throw new Error('Could not access model.json file');
+        }
+        
+        // Try to read model JSON to check if it's valid
+        try {
+            const jsonResponse = await fetch(modelUrl);
+            const modelJson = await jsonResponse.json();
+            
+            // Verify we can access at least one of the shard files
+            if (modelJson.weightsManifest && modelJson.weightsManifest.length > 0) {
+                const shards = modelJson.weightsManifest[0].paths;
+                if (shards && shards.length > 0) {
+                    const firstShard = new URL(shards[0], modelUrl).href;
+                    debugLog(`Checking first shard: ${firstShard}`, 'info');
+                    
+                    const shardResponse = await fetch(firstShard, { method: 'HEAD' });
+                    if (!shardResponse.ok) {
+                        throw new Error(`Shard not accessible: ${shardResponse.status}`);
+                    }
+                    debugLog('Model shard is accessible', 'success');
+                }
+            }
+            
+            debugLog('Model JSON structure validated', 'success');
+            return true;
+        } catch (jsonError) {
+            debugLog(`Error validating model JSON: ${jsonError}`, 'error');
+            throw jsonError;
+        }
+    } catch (error) {
+        debugLog(`Model files check failed: ${error.message}`, 'error');
+        return false;
+    }
+}
+
 // Initialize the application
 async function init() {
     console.log('Initializing application...');
@@ -99,6 +149,14 @@ async function init() {
             throw new Error('Camera API is not supported in your browser');
         }
         console.log('Camera API is supported');
+        
+        // Verify model files are accessible before trying to load them
+        const modelFilesOk = await checkModelFiles();
+        if (!modelFilesOk) {
+            debugLog('Model files check failed, using debug mode', 'warning');
+            // Still continue initialization but mark the error
+            state.error = new Error('Model files not accessible');
+        }
 
         // Load the model in the background
         loadModel()
