@@ -28,20 +28,22 @@ async function init() {
 
 // Start camera and processing
 async function startCamera() {
+    console.log('Starting camera...');
     try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.error('Camera API not supported');
             throw new Error('Camera API is not supported in your browser');
         }
 
+        console.log('Camera API supported');
+
         // Request camera with specific constraints
         const constraints = {
-            video: {
-                facingMode: 'environment',
-                width: { ideal: MODEL_INPUT_SIZE },
-                height: { ideal: MODEL_INPUT_SIZE }
-            },
+            video: true,  // Simplified constraints first
             audio: false
         };
+        
+        console.log('Requesting camera with constraints:', constraints);
         
         // Stop any existing stream
         if (stream) {
@@ -49,18 +51,31 @@ async function startCamera() {
         }
         
         stream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log('Got camera stream:', stream);
+        
         videoElement.srcObject = stream;
+        console.log('Set video source');
         
         // Wait for video to be ready
         await new Promise((resolve) => {
             videoElement.onloadedmetadata = () => {
-                videoElement.play().then(resolve);
+                console.log('Video metadata loaded');
+                videoElement.play()
+                    .then(() => {
+                        console.log('Video playback started');
+                        resolve();
+                    })
+                    .catch(err => {
+                        console.error('Video playback failed:', err);
+                        throw err;
+                    });
             };
         });
         
         // Set canvas size to match video
         canvasElement.width = videoElement.videoWidth;
         canvasElement.height = videoElement.videoHeight;
+        console.log(`Canvas size set to ${canvasElement.width}x${canvasElement.height}`);
         
         // Update button states
         startButton.disabled = true;
@@ -72,46 +87,9 @@ async function startCamera() {
         
         debugLog('Camera started successfully', 'success');
     } catch (error) {
+        console.error('Camera start error:', error);
         debugLog(`Error accessing camera: ${error.message}`, 'error');
-        
-        // Try fallback to any available camera
-        if (error.name === 'OverconstrainedError' || error.name === 'NotFoundError') {
-            try {
-                const fallbackConstraints = {
-                    video: {
-                        width: { ideal: MODEL_INPUT_SIZE },
-                        height: { ideal: MODEL_INPUT_SIZE }
-                    },
-                    audio: false
-                };
-                
-                stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
-                videoElement.srcObject = stream;
-                
-                // Wait for video to be ready
-                await new Promise((resolve) => {
-                    videoElement.onloadedmetadata = () => {
-                        videoElement.play().then(resolve);
-                    };
-                });
-                
-                canvasElement.width = videoElement.videoWidth;
-                canvasElement.height = videoElement.videoHeight;
-                
-                startButton.disabled = true;
-                stopButton.disabled = false;
-                
-                isProcessing = true;
-                processFrame();
-                
-                debugLog('Camera started with fallback settings', 'warning');
-            } catch (fallbackError) {
-                debugLog(`Error accessing fallback camera: ${fallbackError.message}`, 'error');
-                alert('Could not access any camera. Please check permissions and try again.');
-            }
-        } else {
-            alert('Failed to start camera. Please check permissions and try again.');
-        }
+        alert(`Camera error: ${error.message}. Please check console for details.`);
     }
 }
 

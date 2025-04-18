@@ -74,7 +74,7 @@
     <h1>Ball & Coin Detector</h1>
     
     <div id="videoContainer">
-        <video id="videoFeed" playsinline></video>
+        <video id="videoFeed" playsinline autoplay muted></video>
         <canvas id="outputCanvas"></canvas>
     </div>
 
@@ -84,6 +84,17 @@
     </div>
 
     <div id="debugPanel"></div>
+
+    <!-- Debug script -->
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM loaded');
+            const video = document.getElementById('videoFeed');
+            const canvas = document.getElementById('outputCanvas');
+            console.log('Video element:', video);
+            console.log('Canvas element:', canvas);
+        });
+    </script>
 
     <script type="module" src="src/js/main.js"></script>
 </body>
