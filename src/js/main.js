@@ -29,18 +29,34 @@ async function init() {
 // Start camera and processing
 async function startCamera() {
     try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('Camera API is not supported in your browser');
+        }
+
         // Request camera with specific constraints
         const constraints = {
             video: {
                 facingMode: 'environment',
                 width: { ideal: MODEL_INPUT_SIZE },
                 height: { ideal: MODEL_INPUT_SIZE }
-            }
+            },
+            audio: false
         };
+        
+        // Stop any existing stream
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
         
         stream = await navigator.mediaDevices.getUserMedia(constraints);
         videoElement.srcObject = stream;
-        await videoElement.play();
+        
+        // Wait for video to be ready
+        await new Promise((resolve) => {
+            videoElement.onloadedmetadata = () => {
+                videoElement.play().then(resolve);
+            };
+        });
         
         // Set canvas size to match video
         canvasElement.width = videoElement.videoWidth;
@@ -57,17 +73,27 @@ async function startCamera() {
         debugLog('Camera started successfully', 'success');
     } catch (error) {
         debugLog(`Error accessing camera: ${error.message}`, 'error');
+        
+        // Try fallback to any available camera
         if (error.name === 'OverconstrainedError' || error.name === 'NotFoundError') {
-            // Try fallback to any available camera
             try {
-                stream = await navigator.mediaDevices.getUserMedia({ 
+                const fallbackConstraints = {
                     video: {
                         width: { ideal: MODEL_INPUT_SIZE },
                         height: { ideal: MODEL_INPUT_SIZE }
-                    }
-                });
+                    },
+                    audio: false
+                };
+                
+                stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
                 videoElement.srcObject = stream;
-                await videoElement.play();
+                
+                // Wait for video to be ready
+                await new Promise((resolve) => {
+                    videoElement.onloadedmetadata = () => {
+                        videoElement.play().then(resolve);
+                    };
+                });
                 
                 canvasElement.width = videoElement.videoWidth;
                 canvasElement.height = videoElement.videoHeight;
@@ -81,10 +107,10 @@ async function startCamera() {
                 debugLog('Camera started with fallback settings', 'warning');
             } catch (fallbackError) {
                 debugLog(`Error accessing fallback camera: ${fallbackError.message}`, 'error');
-                alert('Could not access any camera. Please check permissions.');
+                alert('Could not access any camera. Please check permissions and try again.');
             }
         } else {
-            alert('Failed to start camera. Check debug panel for details.');
+            alert('Failed to start camera. Please check permissions and try again.');
         }
     }
 }
@@ -147,5 +173,20 @@ async function processFrame() {
 startButton.addEventListener('click', startCamera);
 stopButton.addEventListener('click', stopCamera);
 
-// Initialize the application when the page loads
-window.addEventListener('load', init); 
+// Initialize when the page loads
+window.addEventListener('DOMContentLoaded', async () => {
+    try {
+        // Initialize the model first
+        await loadModel();
+        startButton.disabled = false;
+        debugLog('Application initialized successfully', 'success');
+    } catch (error) {
+        debugLog(`Failed to initialize: ${error.message}`, 'error');
+        alert('Failed to initialize the application. Please check the debug panel for details.');
+    }
+});
+
+// Cleanup when the page unloads
+window.addEventListener('beforeunload', () => {
+    stopCamera();
+}); 
