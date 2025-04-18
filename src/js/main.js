@@ -4,7 +4,7 @@ import { loadModel, detectObjects, drawDetections, MODEL_INPUT_SIZE } from './de
 // Get DOM elements
 const videoElement = document.getElementById('videoFeed');
 const canvasElement = document.getElementById('outputCanvas');
-const canvasCtx = canvasElement.getContext('2d', { willReadFrequently: true });
+const canvasCtx = canvasElement?.getContext('2d', { willReadFrequently: true });
 const startButton = document.getElementById('startButton');
 const stopButton = document.getElementById('stopButton');
 
@@ -15,14 +15,49 @@ let animationFrameId = null;
 let frameCount = 0;
 const PROCESS_EVERY_N_FRAMES = 3; // Process every 3rd frame for better performance
 
+// Verify all required elements exist
+function verifyElements() {
+    const elements = {
+        video: videoElement,
+        canvas: canvasElement,
+        canvasContext: canvasCtx,
+        startButton: startButton,
+        stopButton: stopButton
+    };
+
+    for (const [name, element] of Object.entries(elements)) {
+        if (!element) {
+            throw new Error(`Required element ${name} not found`);
+        }
+    }
+}
+
 // Initialize the application
 async function init() {
+    console.log('Initializing application...');
     try {
+        // Verify DOM elements
+        verifyElements();
+        console.log('All required elements found');
+
+        // Check for required APIs
+        if (!navigator.mediaDevices?.getUserMedia) {
+            throw new Error('Camera API is not supported in your browser');
+        }
+        console.log('Camera API is supported');
+
         // Load the model
         await loadModel();
+        console.log('Model loaded successfully');
+
+        // Enable start button
         startButton.disabled = false;
+        
+        debugLog('Application initialized successfully', 'success');
     } catch (error) {
-        alert('Failed to initialize the application. Check debug panel for details.');
+        console.error('Initialization error:', error);
+        debugLog(`Failed to initialize: ${error.message}`, 'error');
+        alert('Failed to initialize the application. Please check the debug panel for details.');
     }
 }
 
@@ -152,17 +187,7 @@ startButton.addEventListener('click', startCamera);
 stopButton.addEventListener('click', stopCamera);
 
 // Initialize when the page loads
-window.addEventListener('DOMContentLoaded', async () => {
-    try {
-        // Initialize the model first
-        await loadModel();
-        startButton.disabled = false;
-        debugLog('Application initialized successfully', 'success');
-    } catch (error) {
-        debugLog(`Failed to initialize: ${error.message}`, 'error');
-        alert('Failed to initialize the application. Please check the debug panel for details.');
-    }
-});
+window.addEventListener('DOMContentLoaded', init);
 
 // Cleanup when the page unloads
 window.addEventListener('beforeunload', () => {
