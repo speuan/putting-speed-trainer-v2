@@ -142,12 +142,59 @@
     </div>
 
     <div id="controls">
-        <button id="startButton" type="button">Start Camera</button>
+        <button id="startButton" type="button" onclick="startCameraFromHTML()">Start Camera</button>
         <button id="stopButton" type="button" disabled>Stop Camera</button>
     </div>
 
+    <!-- iOS Camera Access Fix -->
+    <script>
+        // Direct camera start function that works better on iOS
+        function startCameraFromHTML() {
+            console.log('Start button clicked directly from HTML');
+            // Feature detection
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                console.log('Camera API supported, requesting camera');
+                // Simple constraints for iOS
+                navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: false
+                }).then(function(stream) {
+                    console.log('Camera access granted!');
+                    const video = document.getElementById('videoFeed');
+                    video.srcObject = stream;
+                    video.setAttribute('playsinline', 'true');
+                    video.setAttribute('muted', 'true');
+                    video.setAttribute('autoplay', 'true');
+                    video.play().catch(function(error) {
+                        console.error('Video play error:', error);
+                        document.getElementById('debugPanel').innerHTML += 
+                            `<div style="color:#ff4444">Video play error: ${error.message}</div>`;
+                    });
+                    
+                    // Now trigger the main app's camera start...
+                    try {
+                        const mainStartButton = document.getElementById('startButton');
+                        console.log('Triggering main app camera start...');
+                        // The main app's event handler will be called from main.js
+                    } catch(error) {
+                        console.error('Error triggering main app:', error);
+                    }
+                }).catch(function(error) {
+                    console.error('Camera access error:', error);
+                    document.getElementById('debugPanel').innerHTML += 
+                        `<div style="color:#ff4444">Camera error: ${error.message}</div>`;
+                    alert('Camera access was denied or error occurred. Please check permissions and try again.');
+                });
+            } else {
+                console.error('Camera API not supported');
+                alert('Your browser does not support camera access.');
+            }
+        }
+    </script>
+
     <!-- Debug controls for iOS testing -->
     <div id="debugControls">
+        <button id="permissionButton" type="button" class="debug-button">Request Permission</button>
         <button id="checkModelButton" type="button" class="debug-button">Check Model</button>
         <button id="testTensorButton" type="button" class="debug-button">Test Tensor</button>
         <button id="clearCanvasButton" type="button" class="debug-button">Clear Canvas</button>
@@ -255,9 +302,37 @@
             });
             
             // Add iOS debug controls
+            const permissionButton = document.getElementById('permissionButton');
             const checkModelButton = document.getElementById('checkModelButton');
             const testTensorButton = document.getElementById('testTensorButton');
             const clearCanvasButton = document.getElementById('clearCanvasButton');
+            
+            // Explicit permission request button (important for iOS)
+            permissionButton.addEventListener('click', async () => {
+                addDebugMessage('Requesting camera permission...', 'info');
+                
+                try {
+                    // Request minimal video access to trigger the permission dialog
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: true, 
+                        audio: false 
+                    });
+                    
+                    addDebugMessage('Camera permission granted!', 'success');
+                    
+                    // Stop the stream right away - we just needed the permission
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    // Enable the main start button
+                    document.getElementById('startButton').disabled = false;
+                    addDebugMessage('Start button enabled - click it to start camera', 'success');
+                    
+                } catch (error) {
+                    addDebugMessage(`Permission error: ${error.message}`, 'error');
+                    console.error('Permission error:', error);
+                    alert('Camera permission was denied. Please enable camera access in your browser settings.');
+                }
+            });
             
             checkModelButton.addEventListener('click', async () => {
                 try {

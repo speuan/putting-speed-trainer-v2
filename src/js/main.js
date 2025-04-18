@@ -194,8 +194,50 @@ function updateButtonStates() {
 
 // Start camera and processing
 async function startCamera() {
-    console.log('Starting camera...');
+    console.log('startCamera function called from main.js');
+    
     try {
+        // Check if camera is already running from the HTML button
+        if (videoElement.srcObject && videoElement.srcObject.active) {
+            console.log('Camera already active from HTML button');
+            const stream = videoElement.srcObject;
+            
+            // Update state with existing stream
+            state.stream = stream;
+            
+            // Set canvas size to match video
+            if (videoElement.videoWidth) {
+                canvasElement.width = videoElement.videoWidth;
+                canvasElement.height = videoElement.videoHeight;
+                console.log(`Canvas size set to ${canvasElement.width}x${canvasElement.height}`);
+            } else {
+                // Wait for video to be ready
+                await new Promise((resolve) => {
+                    videoElement.onloadedmetadata = () => {
+                        canvasElement.width = videoElement.videoWidth || MODEL_INPUT_SIZE;
+                        canvasElement.height = videoElement.videoHeight || MODEL_INPUT_SIZE;
+                        console.log(`Canvas size set to ${canvasElement.width}x${canvasElement.height} after metadata`);
+                        resolve();
+                    };
+                    
+                    // Timeout just in case metadata doesn't load
+                    setTimeout(resolve, 1000);
+                });
+            }
+            
+            // Update state and buttons
+            state.isCameraReady = true;
+            state.isProcessing = true;
+            updateButtonStates();
+            
+            // Start processing frames
+            processFrame();
+            
+            debugLog('Camera already running, starting processing', 'success');
+            return;
+        }
+        
+        // Continue with normal camera initialization if not already running...
         // iOS Safari requires user interaction to start camera
         if (iOSDevice()) {
             debugLog('iOS device detected - using compatible settings', 'info');
