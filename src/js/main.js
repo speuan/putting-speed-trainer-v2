@@ -111,7 +111,12 @@ function updateButtonStates() {
 async function startCamera() {
     console.log('Starting camera...');
     try {
-        // Request camera with specific constraints
+        // iOS Safari requires user interaction to start camera
+        if (iOSDevice()) {
+            debugLog('iOS device detected - using compatible settings', 'info');
+        }
+        
+        // Request camera with iOS-compatible constraints
         const constraints = {
             video: {
                 facingMode: 'environment',
@@ -120,6 +125,13 @@ async function startCamera() {
             },
             audio: false
         };
+        
+        // Simplify constraints for iOS
+        if (iOSDevice()) {
+            constraints.video = {
+                facingMode: 'environment'
+            };
+        }
         
         console.log('Requesting camera with constraints:', constraints);
         
@@ -136,10 +148,21 @@ async function startCamera() {
         state.stream = await navigator.mediaDevices.getUserMedia(constraints);
         console.log('Got camera stream:', state.stream);
         
-        // Set up video element
+        // Set up video element with iOS-compatible settings
         videoElement.srcObject = state.stream;
-        videoElement.style.display = 'block'; // Ensure video is visible
-        console.log('Set video source');
+        videoElement.style.display = 'block';
+        videoElement.setAttribute('playsinline', 'true');
+        videoElement.setAttribute('muted', 'true');
+        videoElement.setAttribute('autoplay', 'true');
+        console.log('Set video source with iOS attributes');
+        
+        // iOS Safari requires a different approach to starting video
+        if (iOSDevice()) {
+            console.log('Using iOS-specific video playback approach');
+            videoElement.play().catch(error => {
+                console.error('iOS play error:', error);
+            });
+        }
         
         // Wait for video to be ready
         await new Promise((resolve, reject) => {
@@ -155,17 +178,21 @@ async function startCamera() {
 
             const onError = (error) => {
                 cleanup();
-                reject(new Error(`Video error: ${error.message}`));
+                console.error('Video error event:', error);
+                reject(new Error(`Video error: ${error.message || 'Unknown error'}`));
             };
 
             const onMetadata = async () => {
                 try {
                     console.log('Video metadata loaded');
-                    await videoElement.play();
-                    console.log('Video playback started');
+                    if (!iOSDevice()) {
+                        await videoElement.play();
+                    }
+                    console.log('Video playback started or attempted');
                     cleanup();
                     resolve();
                 } catch (error) {
+                    console.error('Play error in onMetadata:', error);
                     cleanup();
                     reject(error);
                 }
@@ -177,7 +204,17 @@ async function startCamera() {
         
         // Double check video is actually playing
         if (videoElement.paused) {
-            throw new Error('Video failed to start playing');
+            console.warn('Video is still paused after initialization');
+            if (iOSDevice()) {
+                console.log('Attempting playback again for iOS');
+                try {
+                    await videoElement.play();
+                } catch (error) {
+                    console.error('Second play attempt failed:', error);
+                }
+            } else {
+                throw new Error('Video failed to start playing');
+            }
         }
         
         // Set canvas size to match video
@@ -201,44 +238,40 @@ async function startCamera() {
         updateButtonStates();
         
         // Try fallback to any available camera
-        if (error.name === 'OverconstrainedError' || error.name === 'NotFoundError') {
-            try {
-                const fallbackConstraints = {
-                    video: true,
-                    audio: false
-                };
-                
-                // Reset video element
-                videoElement.srcObject = null;
-                videoElement.load();
-                
-                state.stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
-                videoElement.srcObject = state.stream;
-                videoElement.style.display = 'block';
-                
-                await videoElement.play();
-                
-                if (videoElement.paused) {
-                    throw new Error('Fallback video failed to start playing');
-                }
-                
-                canvasElement.width = videoElement.videoWidth || MODEL_INPUT_SIZE;
-                canvasElement.height = videoElement.videoHeight || MODEL_INPUT_SIZE;
-                
-                state.isCameraReady = true;
-                state.isProcessing = true;
-                updateButtonStates();
-                
-                processFrame();
-                
-                debugLog('Camera started with fallback settings', 'warning');
-            } catch (fallbackError) {
-                console.error('Fallback camera error:', fallbackError);
-                debugLog(`Fallback camera failed: ${fallbackError.message}`, 'error');
-                alert('Could not access any camera. Please check permissions and try again.');
-            }
-        } else {
-            alert(`Camera error: ${error.message}. Please check console for details.`);
+        try {
+            console.log('Attempting fallback camera approach');
+            const fallbackConstraints = {
+                video: true,
+                audio: false
+            };
+            
+            // Reset video element
+            videoElement.srcObject = null;
+            videoElement.load();
+            
+            state.stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+            videoElement.srcObject = state.stream;
+            videoElement.style.display = 'block';
+            videoElement.setAttribute('playsinline', 'true');
+            videoElement.setAttribute('muted', 'true');
+            videoElement.setAttribute('autoplay', 'true');
+            
+            await videoElement.play();
+            
+            canvasElement.width = videoElement.videoWidth || MODEL_INPUT_SIZE;
+            canvasElement.height = videoElement.videoHeight || MODEL_INPUT_SIZE;
+            
+            state.isCameraReady = true;
+            state.isProcessing = true;
+            updateButtonStates();
+            
+            processFrame();
+            
+            debugLog('Camera started with fallback settings', 'warning');
+        } catch (fallbackError) {
+            console.error('Fallback camera error:', fallbackError);
+            debugLog(`Fallback camera failed: ${fallbackError.message}`, 'error');
+            alert('Could not access camera. Please ensure camera permissions are granted and try again.');
         }
     }
 }
@@ -307,4 +340,10 @@ window.addEventListener('DOMContentLoaded', init);
 // Cleanup when the page unloads
 window.addEventListener('beforeunload', () => {
     stopCamera();
-}); 
+});
+
+// Helper function to detect iOS devices
+function iOSDevice() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+} 

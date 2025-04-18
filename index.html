@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Ball & Coin Detector</title>
     <link rel="stylesheet" href="src/css/styles.css">
     <!-- TensorFlow.js -->
@@ -15,12 +17,17 @@
             flex-direction: column;
             align-items: center;
             background-color: #f0f0f0;
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
         }
         #videoContainer {
             position: relative;
-            width: 640px;
-            height: 640px;
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            aspect-ratio: 1 / 1;
             margin: 20px auto;
             background: #000;
             overflow: hidden;
@@ -44,16 +51,25 @@
         }
         #controls {
             margin: 20px 0;
+            width: 100%;
+            max-width: 640px;
+            display: flex;
+            justify-content: center;
         }
         button {
-            padding: 10px 20px;
+            padding: 15px 30px;
             margin: 0 10px;
             border: none;
-            border-radius: 5px;
+            border-radius: 8px;
             background-color: #007bff;
             color: white;
             cursor: pointer;
             font-size: 16px;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        button:active {
+            background-color: #0056b3;
         }
         button:disabled {
             background-color: #cccccc;
@@ -70,6 +86,19 @@
             border-radius: 5px;
             font-family: monospace;
             margin-top: 20px;
+            -webkit-overflow-scrolling: touch;
+        }
+        /* Responsive design for iOS devices */
+        @media only screen and (max-width: 767px) {
+            #videoContainer {
+                width: 95%;
+                height: auto;
+            }
+            button {
+                flex: 1;
+                padding: 15px 0;
+                margin: 0 5px;
+            }
         }
     </style>
 </head>
@@ -81,14 +110,14 @@
                playsinline 
                autoplay 
                muted
-               style="transform: scaleX(-1);"
+               webkit-playsinline
         ></video>
         <canvas id="outputCanvas"></canvas>
     </div>
 
     <div id="controls">
-        <button id="startButton">Start Camera</button>
-        <button id="stopButton" disabled>Stop Camera</button>
+        <button id="startButton" type="button">Start Camera</button>
+        <button id="stopButton" type="button" disabled>Stop Camera</button>
     </div>
 
     <div id="debugPanel"></div>
@@ -102,6 +131,8 @@
         window.addEventListener('DOMContentLoaded', async () => {
             try {
                 console.log('Initializing TensorFlow.js...');
+                // Force WebGL backend for iOS
+                await tf.setBackend('webgl');
                 // Wait for TensorFlow.js to be ready
                 await tf.ready();
                 console.log('TensorFlow.js initialized successfully');
@@ -126,6 +157,8 @@
     <script>
         window.addEventListener('DOMContentLoaded', () => {
             console.log('DOM loaded');
+            console.log('User Agent:', navigator.userAgent);
+            
             const video = document.getElementById('videoFeed');
             const canvas = document.getElementById('outputCanvas');
             console.log('Video element:', video);
