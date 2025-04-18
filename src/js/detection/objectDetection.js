@@ -37,7 +37,11 @@ export async function loadModel() {
             
             debugLog(`Using backend: ${tf.getBackend()}`, 'info');
             
-            const modelUrl = './src/assets/my_model_web_model_2/model.json';
+            // Use absolute path for model URL to ensure proper shard URL resolution
+            // Get base URL from current document
+            const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
+            const modelUrl = new URL('./src/assets/my_model_web_model_2/model.json', baseUrl).href;
+            
             debugLog(`Attempting to load model from: ${modelUrl}`, 'info');
             
             // First check if the model.json file is accessible
@@ -52,24 +56,20 @@ export async function loadModel() {
                 throw new Error(`Could not access model.json file: ${fetchError.message}`);
             }
             
-            // Use loadGraphModel with progress tracking
+            // Use loadGraphModel with custom loading options
             model = await tf.loadGraphModel(modelUrl, {
                 onProgress: (fraction) => {
                     debugLog(`Model loading progress: ${(fraction * 100).toFixed(1)}%`, 'info');
                 },
-                fetchFunc: (path, options) => {
-                    // Implement custom fetch for model files with better error reporting
-                    return fetch(path, options)
-                        .then(response => {
-                            if (!response.ok) {
-                                throw new Error(`HTTP error loading model part: ${response.status} - ${response.statusText}`);
-                            }
-                            return response;
-                        })
-                        .catch(error => {
-                            debugLog(`Error fetching model part ${path}: ${error.message}`, 'error');
-                            throw error;
-                        });
+                // Custom URL loader to handle relative paths properly
+                weightUrlConverter: (weightUrl) => {
+                    // Convert relative paths to absolute
+                    if (weightUrl.startsWith('group')) {
+                        // Get model directory from model URL
+                        const modelDir = modelUrl.substring(0, modelUrl.lastIndexOf('/') + 1);
+                        return new URL(weightUrl, modelDir).href;
+                    }
+                    return weightUrl;
                 }
             });
             

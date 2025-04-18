@@ -43,7 +43,12 @@ function verifyElements() {
 async function checkModelFiles() {
     try {
         debugLog('Checking model files...', 'info');
-        const modelUrl = './src/assets/my_model_web_model_2/model.json';
+        
+        // Use absolute path for model URL to ensure proper shard URL resolution
+        const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
+        const modelUrl = new URL('./src/assets/my_model_web_model_2/model.json', baseUrl).href;
+        
+        debugLog(`Checking model at: ${modelUrl}`, 'info');
         
         // First check the model.json file
         try {
@@ -66,7 +71,10 @@ async function checkModelFiles() {
             if (modelJson.weightsManifest && modelJson.weightsManifest.length > 0) {
                 const shards = modelJson.weightsManifest[0].paths;
                 if (shards && shards.length > 0) {
-                    const firstShard = new URL(shards[0], modelUrl).href;
+                    // Get model directory from model URL
+                    const modelDir = modelUrl.substring(0, modelUrl.lastIndexOf('/') + 1);
+                    const firstShard = new URL(shards[0], modelDir).href;
+                    
                     debugLog(`Checking first shard: ${firstShard}`, 'info');
                     
                     const shardResponse = await fetch(firstShard, { method: 'HEAD' });
@@ -335,7 +343,7 @@ async function startCamera() {
             if (iOSDevice()) {
                 console.log('Attempting playback again for iOS');
                 try {
-                    await videoElement.play();
+        await videoElement.play();
                 } catch (error) {
                     console.error('Second play attempt failed:', error);
                 }
@@ -364,8 +372,8 @@ async function startCamera() {
         state.error = error;
         updateButtonStates();
         
-        // Try fallback to any available camera
-        try {
+            // Try fallback to any available camera
+            try {
             console.log('Attempting fallback camera approach');
             const fallbackConstraints = {
                 video: true,
@@ -383,19 +391,19 @@ async function startCamera() {
             videoElement.setAttribute('muted', 'true');
             videoElement.setAttribute('autoplay', 'true');
             
-            await videoElement.play();
-            
+                await videoElement.play();
+                
             canvasElement.width = videoElement.videoWidth || MODEL_INPUT_SIZE;
             canvasElement.height = videoElement.videoHeight || MODEL_INPUT_SIZE;
-            
+                
             state.isCameraReady = true;
             state.isProcessing = true;
             updateButtonStates();
-            
-            processFrame();
-            
-            debugLog('Camera started with fallback settings', 'warning');
-        } catch (fallbackError) {
+                
+                processFrame();
+                
+                debugLog('Camera started with fallback settings', 'warning');
+            } catch (fallbackError) {
             console.error('Fallback camera error:', fallbackError);
             debugLog(`Fallback camera failed: ${fallbackError.message}`, 'error');
             alert('Could not access camera. Please ensure camera permissions are granted and try again.');
@@ -485,11 +493,11 @@ async function processFrame() {
                     scaledCanvas.remove();
                 } else {
                     // Normal detection for non-iOS
-                    const detections = await detectObjects(imageData);
-                    
-                    if (detections && detections.length > 0) {
-                        // Draw detections
-                        drawDetections(canvasCtx, detections, canvasElement.width, canvasElement.height);
+                const detections = await detectObjects(imageData);
+                
+                if (detections && detections.length > 0) {
+                    // Draw detections
+                    drawDetections(canvasCtx, detections, canvasElement.width, canvasElement.height);
                     }
                 }
             } catch (error) {
