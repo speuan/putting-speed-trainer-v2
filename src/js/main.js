@@ -93,7 +93,7 @@ async function startCamera() {
         // Request camera with specific constraints
         const constraints = {
             video: {
-                facingMode: 'environment',  // Try environment camera first
+                facingMode: 'environment',
                 width: { ideal: MODEL_INPUT_SIZE },
                 height: { ideal: MODEL_INPUT_SIZE }
             },
@@ -107,37 +107,61 @@ async function startCamera() {
             state.stream.getTracks().forEach(track => track.stop());
         }
         
+        // Reset video element
+        videoElement.srcObject = null;
+        videoElement.load();
+        
+        // Get new stream
         state.stream = await navigator.mediaDevices.getUserMedia(constraints);
         console.log('Got camera stream:', state.stream);
         
+        // Set up video element
         videoElement.srcObject = state.stream;
+        videoElement.style.display = 'block'; // Ensure video is visible
         console.log('Set video source');
         
         // Wait for video to be ready
         await new Promise((resolve, reject) => {
             const timeoutId = setTimeout(() => {
                 reject(new Error('Video loading timed out'));
-            }, 10000); // 10 second timeout
+            }, 10000);
 
-            videoElement.onloadedmetadata = () => {
-                console.log('Video metadata loaded');
-                videoElement.play()
-                    .then(() => {
-                        clearTimeout(timeoutId);
-                        console.log('Video playback started');
-                        resolve();
-                    })
-                    .catch(err => {
-                        clearTimeout(timeoutId);
-                        console.error('Video playback failed:', err);
-                        reject(err);
-                    });
+            const cleanup = () => {
+                videoElement.removeEventListener('loadedmetadata', onMetadata);
+                videoElement.removeEventListener('error', onError);
+                clearTimeout(timeoutId);
             };
+
+            const onError = (error) => {
+                cleanup();
+                reject(new Error(`Video error: ${error.message}`));
+            };
+
+            const onMetadata = async () => {
+                try {
+                    console.log('Video metadata loaded');
+                    await videoElement.play();
+                    console.log('Video playback started');
+                    cleanup();
+                    resolve();
+                } catch (error) {
+                    cleanup();
+                    reject(error);
+                }
+            };
+
+            videoElement.addEventListener('loadedmetadata', onMetadata);
+            videoElement.addEventListener('error', onError);
         });
         
+        // Double check video is actually playing
+        if (videoElement.paused) {
+            throw new Error('Video failed to start playing');
+        }
+        
         // Set canvas size to match video
-        canvasElement.width = videoElement.videoWidth;
-        canvasElement.height = videoElement.videoHeight;
+        canvasElement.width = videoElement.videoWidth || MODEL_INPUT_SIZE;
+        canvasElement.height = videoElement.videoHeight || MODEL_INPUT_SIZE;
         console.log(`Canvas size set to ${canvasElement.width}x${canvasElement.height}`);
         
         // Update state and buttons
@@ -163,9 +187,22 @@ async function startCamera() {
                     audio: false
                 };
                 
+                // Reset video element
+                videoElement.srcObject = null;
+                videoElement.load();
+                
                 state.stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
                 videoElement.srcObject = state.stream;
+                videoElement.style.display = 'block';
+                
                 await videoElement.play();
+                
+                if (videoElement.paused) {
+                    throw new Error('Fallback video failed to start playing');
+                }
+                
+                canvasElement.width = videoElement.videoWidth || MODEL_INPUT_SIZE;
+                canvasElement.height = videoElement.videoHeight || MODEL_INPUT_SIZE;
                 
                 state.isCameraReady = true;
                 state.isProcessing = true;

@@ -21,7 +21,8 @@
             position: relative;
             width: 640px;
             height: 640px;
-            margin: 20px 0;
+            margin: 20px auto;
+            background: #000;
             overflow: hidden;
         }
         #videoFeed {
@@ -31,6 +32,7 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+            z-index: 1;
         }
         #outputCanvas {
             position: absolute;
@@ -38,6 +40,7 @@
             left: 0;
             width: 100%;
             height: 100%;
+            z-index: 2;
         }
         #controls {
             margin: 20px 0;
@@ -74,7 +77,12 @@
     <h1>Ball & Coin Detector</h1>
     
     <div id="videoContainer">
-        <video id="videoFeed" playsinline autoplay muted></video>
+        <video id="videoFeed" 
+               playsinline 
+               autoplay 
+               muted
+               style="transform: scaleX(-1);"
+        ></video>
         <canvas id="outputCanvas"></canvas>
     </div>
 
@@ -85,6 +93,9 @@
 
     <div id="debugPanel"></div>
 
+    <!-- Load TensorFlow.js first -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0"></script>
+
     <!-- Debug script -->
     <script>
         window.addEventListener('DOMContentLoaded', () => {
@@ -93,6 +104,15 @@
             const canvas = document.getElementById('outputCanvas');
             console.log('Video element:', video);
             console.log('Canvas element:', canvas);
+            
+            // Add video element event listeners for debugging
+            video.addEventListener('play', () => console.log('Video play event'));
+            video.addEventListener('pause', () => console.log('Video pause event'));
+            video.addEventListener('loadedmetadata', () => console.log('Video loadedmetadata event'));
+            video.addEventListener('loadeddata', () => console.log('Video loadeddata event'));
+            video.addEventListener('playing', () => console.log('Video playing event'));
+            video.addEventListener('waiting', () => console.log('Video waiting event'));
+            video.addEventListener('error', (e) => console.error('Video error event:', e));
         });
     </script>
 
