@@ -43,6 +43,14 @@ function verifyElements() {
 async function init() {
     console.log('Initializing application...');
     try {
+        // Log device information
+        console.log('User Agent:', navigator.userAgent);
+        const isIOS = iOSDevice();
+        if (isIOS) {
+            console.log('iOS device detected - using compatible settings');
+            debugLog('iOS device detected - using compatible settings', 'info');
+        }
+
         // Wait for TensorFlow.js to be ready
         if (!window.tensorflowReady) {
             console.log('Waiting for TensorFlow.js to initialize...');
@@ -62,6 +70,25 @@ async function init() {
             });
         }
         console.log('TensorFlow.js is ready');
+        
+        // Special handling for iOS devices
+        if (isIOS) {
+            try {
+                // On iOS, allocate a smaller tensor to test GPU memory
+                console.log('Testing WebGL memory allocation for iOS...');
+                const smallDummy = tf.zeros([1, 224, 224, 3]);
+                smallDummy.dispose();
+                debugLog('WebGL memory test passed', 'success');
+            } catch (error) {
+                console.error('WebGL memory test failed:', error);
+                debugLog('WebGL memory test failed - will use CPU backend', 'warning');
+                
+                // Force CPU backend if WebGL fails
+                await tf.setBackend('cpu');
+                await tf.ready();
+                debugLog(`Fallback to CPU backend: ${tf.getBackend()}`, 'warning');
+            }
+        }
 
         // Verify DOM elements
         verifyElements();
@@ -302,9 +329,13 @@ function stopCamera() {
 async function processFrame() {
     if (!state.isProcessing) return;
     
+    const isIOS = iOSDevice();
+    
     if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
-        // Only process every Nth frame
-        if (frameCount % PROCESS_EVERY_N_FRAMES === 0) {
+        // Only process every Nth frame (use more frames for iOS)
+        const processEveryFrames = isIOS ? 6 : PROCESS_EVERY_N_FRAMES;
+        
+        if (frameCount % processEveryFrames === 0) {
             try {
                 // Draw the current frame to the canvas
                 canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
@@ -312,14 +343,57 @@ async function processFrame() {
                 // Get the frame data
                 const imageData = canvasCtx.getImageData(0, 0, canvasElement.width, canvasElement.height);
                 
-                // Detect objects
-                const detections = await detectObjects(imageData);
-                
-                if (detections && detections.length > 0) {
-                    // Draw detections
-                    drawDetections(canvasCtx, detections, canvasElement.width, canvasElement.height);
+                // Special handling for iOS
+                if (isIOS) {
+                    // Use a smaller processing size for iOS
+                    const scaledCanvas = document.createElement('canvas');
+                    const scaledCtx = scaledCanvas.getContext('2d', { willReadFrequently: true });
+                    
+                    // Create a scaled-down version (half size) for iOS
+                    const scaleFactor = 0.5;
+                    const scaledWidth = Math.floor(canvasElement.width * scaleFactor);
+                    const scaledHeight = Math.floor(canvasElement.height * scaleFactor);
+                    
+                    scaledCanvas.width = scaledWidth;
+                    scaledCanvas.height = scaledHeight;
+                    
+                    // Draw scaled down image
+                    scaledCtx.drawImage(videoElement, 0, 0, scaledWidth, scaledHeight);
+                    const scaledImageData = scaledCtx.getImageData(0, 0, scaledWidth, scaledHeight);
+                    
+                    // Detect objects with the scaled-down data
+                    const detections = await detectObjects(scaledImageData);
+                    
+                    if (detections && detections.length > 0) {
+                        // Scale detections back up for display
+                        const scaledDetections = detections.map(detection => {
+                            const scaled = {...detection};
+                            scaled.box = {
+                                y1: detection.box.y1,
+                                x1: detection.box.x1,
+                                y2: detection.box.y2,
+                                x2: detection.box.x2
+                            };
+                            return scaled;
+                        });
+                        
+                        // Draw detections
+                        drawDetections(canvasCtx, scaledDetections, canvasElement.width, canvasElement.height);
+                    }
+                    
+                    // Clean up
+                    scaledCanvas.remove();
+                } else {
+                    // Normal detection for non-iOS
+                    const detections = await detectObjects(imageData);
+                    
+                    if (detections && detections.length > 0) {
+                        // Draw detections
+                        drawDetections(canvasCtx, detections, canvasElement.width, canvasElement.height);
+                    }
                 }
             } catch (error) {
+                console.error('Processing error:', error);
                 debugLog(`Error processing frame: ${error.message}`, 'error');
             }
         }
