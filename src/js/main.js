@@ -6,6 +6,7 @@ const videoElement = document.getElementById('videoFeed');
 const canvasElement = document.getElementById('outputCanvas');
 const canvasCtx = canvasElement?.getContext('2d', { willReadFrequently: true });
 const startButton = document.getElementById('startButton');
+const captureButton = document.getElementById('captureButton');
 const stopButton = document.getElementById('stopButton');
 
 // State management
@@ -29,6 +30,7 @@ function verifyElements() {
         canvas: canvasElement,
         canvasContext: canvasCtx,
         startButton: startButton,
+        captureButton: captureButton,
         stopButton: stopButton
     };
 
@@ -203,6 +205,10 @@ async function init() {
 function updateButtonStates() {
     // Start button enabled if camera API available and no processing
     startButton.disabled = state.isProcessing || !navigator.mediaDevices?.getUserMedia || !!state.error;
+    
+    // Capture button enabled when camera is ready but disabled when we're already processing a frame
+    captureButton.disabled = !state.isCameraReady || (state.isProcessing && animationFrameId !== null) || !state.isModelLoaded;
+    
     // Stop button enabled only when processing
     stopButton.disabled = !state.isProcessing;
 }
@@ -242,13 +248,17 @@ async function startCamera() {
             
             // Update state and buttons
             state.isCameraReady = true;
-            state.isProcessing = true;
+            
+            // We're not automatically processing frames anymore
+            state.isProcessing = false;
+            
             updateButtonStates();
             
-            // Start processing frames
-            processFrame();
+            // Enable capture button when camera is ready
+            captureButton.disabled = false;
             
-            debugLog('Camera already running, starting processing', 'success');
+            debugLog('Camera ready - press "Take Photo" to capture a frame', 'success');
+            
             return;
         }
         
@@ -366,13 +376,16 @@ async function startCamera() {
         
         // Update state and buttons
         state.isCameraReady = true;
-        state.isProcessing = true;
+        
+        // We're not automatically processing frames anymore
+        state.isProcessing = false;
+        
         updateButtonStates();
         
-        // Start processing frames
-        processFrame();
+        // Enable capture button when camera is ready
+        captureButton.disabled = false;
         
-        debugLog('Camera started successfully', 'success');
+        debugLog('Camera ready - press "Take Photo" to capture a frame', 'success');
     } catch (error) {
         console.error('Camera start error:', error);
         debugLog(`Error accessing camera: ${error.message}`, 'error');
@@ -404,7 +417,10 @@ async function startCamera() {
             canvasElement.height = videoElement.videoHeight || MODEL_INPUT_SIZE;
                 
             state.isCameraReady = true;
-            state.isProcessing = true;
+            
+            // We're not automatically processing frames anymore
+            state.isProcessing = false;
+            
             updateButtonStates();
                 
                 processFrame();
@@ -523,8 +539,84 @@ async function processFrame() {
     animationFrameId = requestAnimationFrame(processFrame);
 }
 
+// Capture a single frame for detection
+async function captureFrame() {
+    if (!state.isCameraReady || !state.isModelLoaded) {
+        debugLog('Cannot capture frame - camera or model not ready', 'error');
+        return;
+    }
+    
+    try {
+        // Set processing state so buttons update correctly
+        const wasProcessing = state.isProcessing;
+        state.isProcessing = true;
+        
+        // Stop continuous frame processing if active
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        
+        debugLog('Capturing single frame for detection...', 'info');
+        
+        // Make sure we have the right canvas dimensions
+        if (canvasElement.width !== videoElement.videoWidth || canvasElement.height !== videoElement.videoHeight) {
+            canvasElement.width = videoElement.videoWidth || MODEL_INPUT_SIZE;
+            canvasElement.height = videoElement.videoHeight || MODEL_INPUT_SIZE;
+            debugLog(`Adjusted canvas to ${canvasElement.width}x${canvasElement.height}`, 'info');
+        }
+        
+        // Clear previous drawings
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        
+        // Draw current video frame to canvas
+        canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+        debugLog('Video frame captured to canvas', 'success');
+        
+        // Get image data from canvas
+        const imageData = canvasCtx.getImageData(0, 0, canvasElement.width, canvasElement.height);
+        
+        // Process with object detection
+        debugLog('Running detection on captured frame...', 'info');
+        const detections = await detectObjects(imageData);
+        
+        // Log detection results
+        if (detections && detections.length > 0) {
+            debugLog(`Found ${detections.length} objects in captured frame`, 'success');
+            
+            // Clear canvas and redraw video frame before drawing detections
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+            
+            // Draw detection boxes
+            drawDetections(canvasCtx, detections, canvasElement.width, canvasElement.height);
+        } else {
+            debugLog('No objects detected in captured frame', 'warning');
+        }
+        
+        // Restore previous processing state if needed
+        state.isProcessing = wasProcessing;
+        if (wasProcessing) {
+            // Restart continuous frame processing
+            animationFrameId = requestAnimationFrame(processFrame);
+        }
+        
+        // Update button states
+        updateButtonStates();
+        
+    } catch (error) {
+        debugLog(`Error processing captured frame: ${error.message}`, 'error');
+        console.error('Capture frame error:', error);
+        
+        // Ensure we reset processing state
+        state.isProcessing = false;
+        updateButtonStates();
+    }
+}
+
 // Event listeners
 startButton.addEventListener('click', startCamera);
+captureButton.addEventListener('click', captureFrame);
 stopButton.addEventListener('click', stopCamera);
 
 // Initialize when the page loads

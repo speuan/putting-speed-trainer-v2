@@ -2,7 +2,7 @@ import { debugLog } from '../utils/debug.js';
 
 // Constants
 export const MODEL_INPUT_SIZE = 640;
-export const MIN_CONFIDENCE = 0.05;
+export const MIN_CONFIDENCE = 0.15;
 
 let model = null;
 let isModelLoaded = false;
