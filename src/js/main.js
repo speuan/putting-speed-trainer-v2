@@ -472,32 +472,36 @@ async function processFrame() {
                     // Detect objects with the scaled-down data
                     const detections = await detectObjects(scaledImageData);
                     
+                    // Clear canvas for fresh drawing
+                    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+                    // Draw video frame
+                    canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+                    
+                    // Draw directly with original detections - coordinates are normalized
                     if (detections && detections.length > 0) {
-                        // Scale detections back up for display
-                        const scaledDetections = detections.map(detection => {
-                            const scaled = {...detection};
-                            scaled.box = {
-                                y1: detection.box.y1,
-                                x1: detection.box.x1,
-                                y2: detection.box.y2,
-                                x2: detection.box.x2
-                            };
-                            return scaled;
-                        });
-                        
-                        // Draw detections
-                        drawDetections(canvasCtx, scaledDetections, canvasElement.width, canvasElement.height);
+                        debugLog(`Found ${detections.length} detections, drawing boxes`, 'success');
+                        drawDetections(canvasCtx, detections, canvasElement.width, canvasElement.height);
+                    } else {
+                        debugLog('No detections in this frame', 'info');
                     }
                     
                     // Clean up
                     scaledCanvas.remove();
                 } else {
                     // Normal detection for non-iOS
-                const detections = await detectObjects(imageData);
-                
-                if (detections && detections.length > 0) {
-                    // Draw detections
-                    drawDetections(canvasCtx, detections, canvasElement.width, canvasElement.height);
+                    const detections = await detectObjects(imageData);
+                    
+                    if (detections && detections.length > 0) {
+                        // Clear canvas first
+                        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                        
+                        // Redraw video frame
+                        canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+                        
+                        // Draw detections
+                        debugLog(`Drawing ${detections.length} detection boxes`, 'info');
+                        drawDetections(canvasCtx, detections, canvasElement.width, canvasElement.height);
                     }
                 }
             } catch (error) {

@@ -380,12 +380,12 @@ function processYoloOutput(predArray) {
 export function drawDetections(ctx, detections, canvasWidth, canvasHeight) {
     if (!detections || detections.length === 0) return;
     
-    // Clear previous drawings
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    // Don't clear previous drawings - now handled in main.js
+    // ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     
-    // Set detection drawing styles
-    ctx.lineWidth = 3;
-    ctx.font = '16px sans-serif';
+    // Set detection drawing styles - make more visible
+    ctx.lineWidth = 5; // Increased from 3 to 5
+    ctx.font = 'bold 18px sans-serif'; // Made font larger and bold
     ctx.textBaseline = 'bottom';
     
     detections.forEach(detection => {
@@ -397,20 +397,28 @@ export function drawDetections(ctx, detections, canvasWidth, canvasHeight) {
         const width = (box.x2 - box.x1) * canvasWidth;
         const height = (box.y2 - box.y1) * canvasHeight;
         
-        // Draw bounding box
-        ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+        // Draw bounding box with a more visible color
+        ctx.strokeStyle = 'rgb(255, 0, 0)'; // Bright red, no transparency
         ctx.beginPath();
         ctx.rect(x, y, width, height);
         ctx.stroke();
         
-        // Draw label background
+        // Add a second outer stroke for better visibility
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'white';
+        ctx.beginPath();
+        ctx.rect(x-1, y-1, width+2, height+2);
+        ctx.stroke();
+        ctx.lineWidth = 5; // Reset for next box
+        
+        // Draw label background with more contrast
         const label = `Ball: ${Math.round(confidence * 100)}%`;
         const textWidth = ctx.measureText(label).width;
-        ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
-        ctx.fillRect(x, y - 20, textWidth + 10, 20);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'; // Black background for contrast
+        ctx.fillRect(x, y - 25, textWidth + 10, 25); // Made taller
         
-        // Draw text
-        ctx.fillStyle = 'white';
-        ctx.fillText(label, x + 5, y);
+        // Draw text with a brighter color
+        ctx.fillStyle = 'rgb(255, 255, 0)'; // Bright yellow for visibility
+        ctx.fillText(label, x + 5, y - 5); // Moved text up a bit
     });
 }
