@@ -126,6 +126,145 @@
                 margin: 10px 0;
             }
         }
+        /* Basic styles */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+
+        /* Container for the app */
+        #app {
+            max-width: 100%;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        /* Video feed and output canvas */
+        #videoFeed, #outputCanvas {
+            width: 100%;
+            height: auto;
+            max-height: 80vh;
+            display: block;
+            background-color: #000;
+        }
+
+        /* Canvas should be positioned over the video */
+        #outputCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
+            pointer-events: none; /* Allow clicking through to buttons below */
+        }
+
+        /* Control buttons */
+        #controls {
+            display: flex;
+            justify-content: center;
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .control-button {
+            padding: 8px 16px;
+            margin: 0 5px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .control-button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .control-button:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+
+        /* Debug panel */
+        #debugPanel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            font-family: monospace;
+            font-size: 12px;
+            padding: 10px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        /* Debug controls */
+        #debugControls {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1010;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .debug-button {
+            display: block;
+            width: 100%;
+            margin-bottom: 5px;
+            padding: 5px;
+            background-color: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .debug-button:hover {
+            background-color: #555;
+        }
+        
+        /* Slider styles */
+        #confidenceSlider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 15px;
+            border-radius: 5px;
+            background: #333;
+            outline: none;
+        }
+        
+        #confidenceSlider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+        }
+        
+        #confidenceSlider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+        }
+        
+        #confidenceControl {
+            width: 200px;
+        }
     </style>
 </head>
 <body>
@@ -199,6 +338,12 @@
         <button id="loadModelButton" type="button" class="debug-button">Load Model</button>
         <button id="testTensorButton" type="button" class="debug-button">Test Tensor</button>
         <button id="clearCanvasButton" type="button" class="debug-button">Clear Canvas</button>
+        
+        <!-- Confidence threshold slider -->
+        <div id="confidenceControl" style="margin-top: 10px; background: rgba(0,0,0,0.7); padding: 8px; border-radius: 4px;">
+            <label for="confidenceSlider" style="color: white; display: block; margin-bottom: 5px;">Detection Confidence: <span id="confidenceValue">0.5</span></label>
+            <input type="range" id="confidenceSlider" min="0.05" max="0.95" step="0.05" value="0.5" style="width: 100%;">
+        </div>
     </div>
 
     <div id="debugPanel"></div>
@@ -350,6 +495,26 @@
                 } catch (error) {
                     addDebugMessage(`Manual model load error: ${error.message}`, 'error');
                     console.error('Model load error:', error);
+                }
+            });
+            
+            // Confidence slider
+            const confidenceSlider = document.getElementById('confidenceSlider');
+            const confidenceValue = document.getElementById('confidenceValue');
+            
+            confidenceSlider.addEventListener('input', async () => {
+                const value = parseFloat(confidenceSlider.value);
+                confidenceValue.textContent = value.toFixed(2);
+                
+                try {
+                    // Import the module that contains MIN_CONFIDENCE
+                    const objectDetection = await import('./src/js/detection/objectDetection.js');
+                    
+                    // Update the detection threshold
+                    objectDetection.setMinConfidence(value);
+                    addDebugMessage(`Detection confidence set to ${value.toFixed(2)}`, 'info');
+                } catch (error) {
+                    addDebugMessage(`Failed to update confidence: ${error.message}`, 'error');
                 }
             });
             
