@@ -2,7 +2,7 @@ import { debugLog } from '../utils/debug.js';
 
 // Constants
 export const MODEL_INPUT_SIZE = 640;
-export const MIN_CONFIDENCE = 0.5;
+export const MIN_CONFIDENCE = 0.05;
 
 let model = null;
 let isModelLoaded = false;
@@ -201,6 +201,26 @@ export async function detectObjects(imageData) {
             // Log the prediction type for debugging
             debugLog(`Prediction type: ${typeof predictions}`, 'info');
             
+            // Extra logging for raw predictions
+            if (Array.isArray(predictions)) {
+                debugLog('Got array-type prediction output', 'info');
+                if (predictions[1] && typeof predictions[1].array === 'function') {
+                    try {
+                        const rawScores = await predictions[1].array();
+                        if (rawScores && rawScores[0]) {
+                            debugLog(`Raw scores sample: ${rawScores[0].slice(0, 10).map(s => s.toFixed(3)).join(', ')}`, 'info');
+                            const maxRawScore = Math.max(...rawScores[0]);
+                            debugLog(`Max raw score: ${maxRawScore.toFixed(3)}`, 'info');
+                        }
+                    } catch (e) {
+                        debugLog(`Error reading raw scores: ${e.message}`, 'error');
+                    }
+                }
+            } else if (predictions && typeof predictions.array === 'function') {
+                debugLog('Got tensor-type prediction output', 'info');
+                // Will be logged in the tensor output section below
+            }
+            
             let processedDetections = [];
             
             // Process based on prediction format
@@ -290,9 +310,18 @@ function processDetections(boxes, scores, classes, numDetections) {
     
     // Get the number of detections
     const count = numDetections ? numDetections[0] : boxes[0].length;
+    debugLog(`Processing ${count} raw detections with threshold ${MIN_CONFIDENCE}`, 'info');
+    
+    // Log all boxes and scores before processing
+    if (boxes && boxes[0] && scores && scores[0]) {
+        debugLog(`First few raw confidence scores: ${scores[0].slice(0, 5).map(s => s.toFixed(3)).join(', ')}`, 'info');
+    }
     
     for (let i = 0; i < count; i++) {
         const confidence = scores[0][i];
+        
+        // Log each raw detection
+        debugLog(`Raw detection #${i}: confidence=${confidence.toFixed(3)}`, 'info');
         
         // Filter by confidence threshold
         if (confidence >= MIN_CONFIDENCE) {
@@ -309,6 +338,7 @@ function processDetections(boxes, scores, classes, numDetections) {
                     x1 = box[1];
                     y2 = box[2];
                     x2 = box[3];
+                    debugLog(`Detection #${i} using corner format`, 'info');
                 } else {
                     // Handle center format [x_center, y_center, width, height]
                     const [x_center, y_center, width, height] = box;
@@ -316,6 +346,7 @@ function processDetections(boxes, scores, classes, numDetections) {
                     y1 = y_center - height/2;
                     x2 = x_center + width/2;
                     y2 = y_center + height/2;
+                    debugLog(`Detection #${i} using center format`, 'info');
                 }
                 
                 // Add detection
@@ -324,10 +355,14 @@ function processDetections(boxes, scores, classes, numDetections) {
                     class: Math.round(classes[0][i]),
                     confidence: confidence
                 });
+                debugLog(`Added detection #${i} with confidence ${confidence.toFixed(3)}`, 'success');
             }
+        } else {
+            debugLog(`Filtered out detection #${i}: confidence ${confidence.toFixed(3)} < ${MIN_CONFIDENCE}`, 'info');
         }
     }
     
+    debugLog(`Processed ${detections.length} valid detections after filtering`, 'success');
     return detections;
 }
 
@@ -346,6 +381,27 @@ function processYoloOutput(predArray) {
     const numBoxes = predArray[0].length;
     debugLog(`Processing ${numBoxes} potential YOLO detections`, 'info');
     
+    // Log the full prediction array sizes
+    const arraySizes = predArray.map(arr => arr ? arr.length : 0);
+    debugLog(`YOLO array dimensions: ${JSON.stringify(arraySizes)}`, 'info');
+    
+    // Show all raw confidence values before filtering
+    if (predArray[4] && predArray[4].length > 0) {
+        const allConfidences = predArray[4].map(c => c.toFixed(3));
+        debugLog(`All raw confidence values: ${allConfidences.join(', ')}`, 'info');
+        
+        // Count how many detections would be found at various thresholds
+        const thresholds = [0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 0.7];
+        thresholds.forEach(threshold => {
+            const count = predArray[4].filter(c => c >= threshold).length;
+            debugLog(`Detections with confidence >= ${threshold}: ${count}`, 'info');
+        });
+        
+        // Find max confidence
+        const maxConf = Math.max(...predArray[4]);
+        debugLog(`Maximum confidence value: ${maxConf.toFixed(3)}`, 'success');
+    }
+    
     // Extract each box
     for (let i = 0; i < numBoxes; i++) {
         // Get values for this detection
@@ -354,6 +410,9 @@ function processYoloOutput(predArray) {
         const w = predArray[2][i];
         const h = predArray[3][i];
         const confidence = predArray[4][i];
+        
+        // Log all detections before filtering
+        debugLog(`Detection #${i}: x=${x.toFixed(3)}, y=${y.toFixed(3)}, w=${w.toFixed(3)}, h=${h.toFixed(3)}, conf=${confidence.toFixed(3)}`, 'info');
         
         // Filter by confidence
         if (confidence >= MIN_CONFIDENCE) {
@@ -369,10 +428,13 @@ function processYoloOutput(predArray) {
                 class: 0, // Default to class 0 (ball)
                 confidence: confidence
             });
+            debugLog(`Added detection #${i} with confidence ${confidence.toFixed(3)}`, 'success');
+        } else {
+            debugLog(`Filtered out detection #${i} with low confidence ${confidence.toFixed(3)} < ${MIN_CONFIDENCE}`, 'info');
         }
     }
     
-    debugLog(`Found ${detections.length} valid YOLO detections`, 'success');
+    debugLog(`Found ${detections.length} valid YOLO detections after filtering`, 'success');
     return detections;
 }
 

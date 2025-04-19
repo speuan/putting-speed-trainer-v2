@@ -172,6 +172,13 @@ async function init() {
                 state.isModelLoaded = true;
                 console.log('Model loaded successfully');
                 debugLog('Model loaded successfully', 'success');
+                
+                // Try to get model output shape information
+                if (window.tf && window.tf.engine) {
+                    const numTensors = window.tf.engine().memory().numTensors;
+                    debugLog(`Current tensor count: ${numTensors}`, 'info');
+                }
+                
                 updateButtonStates();
             })
             .catch(error => {
