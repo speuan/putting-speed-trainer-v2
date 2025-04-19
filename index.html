@@ -91,18 +91,10 @@
         }
         /* Add debug buttons */
         #debugControls {
-            margin: 10px 0;
-            width: 100%;
-            max-width: 640px;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
+            display: none; /* Hide debug controls entirely */
         }
         .debug-button {
-            background-color: #555;
-            margin: 5px;
-            font-size: 14px;
-            padding: 10px 15px;
+            display: none; /* Hide debug buttons */
         }
         /* Responsive design for iOS devices */
         @media only screen and (max-width: 767px) {
@@ -205,34 +197,6 @@
             overflow-y: auto;
             z-index: 1000;
         }
-
-        /* Debug controls */
-        #debugControls {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            z-index: 1010;
-            background: rgba(0, 0, 0, 0.5);
-            padding: 10px;
-            border-radius: 5px;
-        }
-
-        .debug-button {
-            display: block;
-            width: 100%;
-            margin-bottom: 5px;
-            padding: 5px;
-            background-color: #333;
-            color: white;
-            border: 1px solid #555;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-
-        .debug-button:hover {
-            background-color: #555;
-        }
     </style>
 </head>
 <body>
@@ -300,12 +264,8 @@
     </script>
 
     <!-- Debug controls for iOS testing -->
-    <div id="debugControls">
-        <button id="permissionButton" type="button" class="debug-button">Request Permission</button>
-        <button id="checkModelButton" type="button" class="debug-button">Check Model</button>
-        <button id="loadModelButton" type="button" class="debug-button">Load Model</button>
-        <button id="testTensorButton" type="button" class="debug-button">Test Tensor</button>
-        <button id="clearCanvasButton" type="button" class="debug-button">Clear Canvas</button>
+    <div id="debugControls" style="display: none;">
+        <!-- Debug controls removed -->
     </div>
 
     <div id="debugPanel"></div>
@@ -409,110 +369,7 @@
                 addDebugMessage(`Video error: ${e.target.error ? e.target.error.message : 'Unknown error'}`, 'error');
             });
             
-            // Add iOS debug controls
-            const permissionButton = document.getElementById('permissionButton');
-            const checkModelButton = document.getElementById('checkModelButton');
-            const loadModelButton = document.getElementById('loadModelButton');
-            const testTensorButton = document.getElementById('testTensorButton');
-            const clearCanvasButton = document.getElementById('clearCanvasButton');
-            
-            // Explicit permission request button (important for iOS)
-            permissionButton.addEventListener('click', async () => {
-                addDebugMessage('Requesting camera permission...', 'info');
-                
-                try {
-                    // Request minimal video access to trigger the permission dialog
-                    const stream = await navigator.mediaDevices.getUserMedia({ 
-                        video: true, 
-                        audio: false 
-                    });
-                    
-                    addDebugMessage('Camera permission granted!', 'success');
-                    
-                    // Stop the stream right away - we just needed the permission
-                    stream.getTracks().forEach(track => track.stop());
-                    
-                    // Enable the main start button
-                    document.getElementById('startButton').disabled = false;
-                    addDebugMessage('Start button enabled - click it to start camera', 'success');
-                    
-                } catch (error) {
-                    addDebugMessage(`Permission error: ${error.message}`, 'error');
-                    console.error('Permission error:', error);
-                    alert('Camera permission was denied. Please enable camera access in your browser settings.');
-                }
-            });
-            
-            // Manual model loading button for testing
-            loadModelButton.addEventListener('click', async () => {
-                addDebugMessage('Manually loading model...', 'info');
-                
-                try {
-                    const { loadModel } = await import('./src/js/detection/objectDetection.js');
-                    
-                    // Try loading the model
-                    await loadModel();
-                    addDebugMessage('Model loaded manually', 'success');
-                    
-                } catch (error) {
-                    addDebugMessage(`Manual model load error: ${error.message}`, 'error');
-                    console.error('Model load error:', error);
-                }
-            });
-            
-            checkModelButton.addEventListener('click', async () => {
-                try {
-                    addDebugMessage('Checking model URL...', 'info');
-                    const modelUrl = './src/assets/my_model_web_model_2/model.json';
-                    
-                    const response = await fetch(modelUrl, { method: 'HEAD' });
-                    if (response.ok) {
-                        addDebugMessage(`Model URL check: OK (${response.status})`, 'success');
-                        
-                        // Try to load model JSON
-                        try {
-                            const jsonResponse = await fetch(modelUrl);
-                            const modelJson = await jsonResponse.json();
-                            addDebugMessage('Model JSON parsed successfully', 'success');
-                        } catch (jsonError) {
-                            addDebugMessage(`Model JSON parse error: ${jsonError.message}`, 'error');
-                        }
-                    } else {
-                        addDebugMessage(`Model URL check failed: ${response.status} ${response.statusText}`, 'error');
-                    }
-                } catch (error) {
-                    addDebugMessage(`Model check error: ${error.message}`, 'error');
-                }
-            });
-            
-            testTensorButton.addEventListener('click', async () => {
-                try {
-                    addDebugMessage('Creating test tensor...', 'info');
-                    const tensor = tf.zeros([1, 224, 224, 3]);
-                    addDebugMessage(`Test tensor created: ${tensor.shape}`, 'success');
-                    
-                    // Try basic operations
-                    addDebugMessage('Testing tensor operations...', 'info');
-                    const scaled = tf.mul(tensor, tf.scalar(255));
-                    addDebugMessage('Multiplication operation succeeded', 'success');
-                    
-                    // Clean up
-                    tf.dispose([tensor, scaled]);
-                    addDebugMessage('Tensors disposed', 'success');
-                } catch (error) {
-                    addDebugMessage(`Tensor test error: ${error.message}`, 'error');
-                }
-            });
-            
-            clearCanvasButton.addEventListener('click', () => {
-                try {
-                    const ctx = canvas.getContext('2d');
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    addDebugMessage('Canvas cleared', 'info');
-                } catch (error) {
-                    addDebugMessage(`Clear canvas error: ${error.message}`, 'error');
-                }
-            });
+            // Debug control functions removed
         });
     </script>
 
