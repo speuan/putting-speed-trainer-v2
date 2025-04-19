@@ -174,8 +174,8 @@ async function loadDirectModel() {
 // Object detection function
 export async function detectObjects(imageData) {
     if (!model) {
-        debugLog('Model not loaded yet - using synthetic detection', 'warning');
-        return createSyntheticDetection();
+        debugLog('Model not loaded yet', 'warning');
+        return [];
     }
     
     try {
@@ -198,127 +198,182 @@ export async function detectObjects(imageData) {
             const predictions = await model.predict(tensor);
             tensor.dispose();
             
+            // Log the prediction type for debugging
             debugLog(`Prediction type: ${typeof predictions}`, 'info');
             
-            // Log detailed information about the prediction output
+            let processedDetections = [];
+            
+            // Process based on prediction format
             if (Array.isArray(predictions)) {
                 debugLog(`Got array of ${predictions.length} tensors`, 'info');
                 
-                // Try to log shapes of each tensor
+                // Display tensor shapes for debugging
                 predictions.forEach((tensor, i) => {
                     if (tensor && tensor.shape) {
                         debugLog(`Tensor ${i} shape: ${tensor.shape}`, 'info');
                     }
                 });
                 
-                // Standard TF.js object detection model output format
-                if (predictions.length >= 4) {
+                try {
+                    // Standard TensorFlow.js object detection model format
                     const [boxes, scores, classes, validDetections] = predictions;
                     
-                    // Force synthetic detection for testing display
-                    debugLog('Ensuring synthetic detection appears', 'warning');
-                    const forcedDetections = createSyntheticDetection();
+                    // Convert tensors to arrays
+                    const boxesArray = await boxes.array();
+                    const scoresArray = await scores.array();
+                    const classesArray = await classes.array();
+                    const numDetections = validDetections ? await validDetections.array() : null;
                     
-                    // Try to also process the real detections
-                    try {
-                        // Convert tensors to regular arrays
-                        const boxesArray = await boxes.array();
-                        const scoresArray = await scores.array();
-                        const classesArray = await classes.array();
-                        
-                        debugLog('Successfully converted tensor outputs to arrays', 'success');
-                        
-                        // Dispose tensor outputs
-                        predictions.forEach(tensor => {
-                            if (tensor) tensor.dispose();
-                        });
-                        
-                        // Return real detection if we could process it
-                        return forcedDetections;
-                    } catch (arrayError) {
-                        debugLog(`Error converting tensors to arrays: ${arrayError}`, 'error');
-                        
-                        // Dispose tensor outputs
-                        predictions.forEach(tensor => {
-                            if (tensor && tensor.dispose) tensor.dispose();
-                        });
-                        
-                        // Still return synthetic detection
-                        return forcedDetections;
-                    }
-                } else {
-                    // Wrong number of tensors - return synthetic detection
-                    debugLog(`Wrong number of tensors: ${predictions.length}`, 'warning');
+                    // Process the detection arrays
+                    processedDetections = processDetections(
+                        boxesArray, 
+                        scoresArray, 
+                        classesArray, 
+                        numDetections
+                    );
                     
-                    // Dispose tensor outputs
-                    predictions.forEach(tensor => {
-                        if (tensor && tensor.dispose) tensor.dispose();
-                    });
-                    
-                    return createSyntheticDetection();
-                }
-            } else if (predictions && predictions.dispose) {
-                // Single tensor output - log info and release
-                if (predictions.shape) {
-                    debugLog(`Single tensor shape: ${predictions.shape}`, 'info');
+                    debugLog(`Processed ${processedDetections.length} real detections`, 'success');
+                } catch (processError) {
+                    debugLog(`Error processing tensor outputs: ${processError}`, 'error');
                 }
                 
-                // Handle it as a single tensor
+                // Clean up tensors
+                predictions.forEach(tensor => {
+                    if (tensor && tensor.dispose) tensor.dispose();
+                });
+            } else if (predictions && typeof predictions.array === 'function') {
+                // Single tensor output
+                debugLog('Single tensor output format', 'info');
+                if (predictions.shape) {
+                    debugLog(`Tensor shape: ${predictions.shape}`, 'info');
+                }
+                
                 try {
-                    const arrayPreds = await predictions.array();
+                    // Convert to array
+                    const predArray = await predictions.array();
                     predictions.dispose();
                     
-                    debugLog('Converted single tensor to array', 'success');
-                    
-                    // Return synthetic regardless for now
-                    return createSyntheticDetection();
-                } catch (singleTensorError) {
-                    debugLog(`Error processing single tensor: ${singleTensorError}`, 'error');
-                    
-                    if (predictions.dispose) {
-                        predictions.dispose();
+                    // Check if this is a YOLO-style output
+                    if (Array.isArray(predArray) && predArray.length >= 5) {
+                        // Process as YOLO output
+                        processedDetections = processYoloOutput(predArray);
+                        debugLog(`Processed ${processedDetections.length} YOLO detections`, 'success');
                     }
-                    
-                    return createSyntheticDetection();
+                } catch (singleError) {
+                    debugLog(`Error processing single tensor: ${singleError}`, 'error');
+                    if (predictions.dispose) predictions.dispose();
                 }
             } else {
                 // Unknown format
-                debugLog('Prediction in unknown format', 'warning');
-                
-                // Safely try to dispose if it's a tensor
+                debugLog('Unknown prediction format', 'warning');
                 if (predictions && typeof predictions.dispose === 'function') {
                     predictions.dispose();
                 }
-                
-                return createSyntheticDetection();
             }
+            
+            return processedDetections;
         } catch (predictionError) {
-            tensor.dispose();
+            if (tensor) tensor.dispose();
             debugLog(`Error during model prediction: ${predictionError}`, 'error');
-            return createSyntheticDetection();
+            return [];
         }
     } catch (error) {
         debugLog(`Detection error: ${error.message}`, 'error');
         console.error('Detection error:', error);
-        return createSyntheticDetection();
+        return [];
     }
 }
 
-// Create a synthetic detection (guaranteed to work)
-function createSyntheticDetection() {
-    debugLog('Creating synthetic detection in the center of the frame', 'info');
-    return [
-        {
-            box: {
-                x1: 0.4,  // 40% from left
-                y1: 0.4,  // 40% from top
-                x2: 0.6,  // 60% from left
-                y2: 0.6   // 60% from top
-            },
-            class: 0,     // Class 0 (ball)
-            confidence: 0.99  // High confidence
+// Process standard detection format
+function processDetections(boxes, scores, classes, numDetections) {
+    const detections = [];
+    
+    // Get the number of detections
+    const count = numDetections ? numDetections[0] : boxes[0].length;
+    
+    for (let i = 0; i < count; i++) {
+        const confidence = scores[0][i];
+        
+        // Filter by confidence threshold
+        if (confidence >= MIN_CONFIDENCE) {
+            // Get box coordinates
+            const box = boxes[0][i];
+            
+            // Convert coordinates based on format
+            let x1, y1, x2, y2;
+            
+            if (box.length === 4) {
+                // Check if already in corner format [y1, x1, y2, x2]
+                if (box[0] <= 1 && box[1] <= 1 && box[2] <= 1 && box[3] <= 1) {
+                    y1 = box[0];
+                    x1 = box[1];
+                    y2 = box[2];
+                    x2 = box[3];
+                } else {
+                    // Handle center format [x_center, y_center, width, height]
+                    const [x_center, y_center, width, height] = box;
+                    x1 = x_center - width/2;
+                    y1 = y_center - height/2;
+                    x2 = x_center + width/2;
+                    y2 = y_center + height/2;
+                }
+                
+                // Add detection
+                detections.push({
+                    box: { x1, y1, x2, y2 },
+                    class: Math.round(classes[0][i]),
+                    confidence: confidence
+                });
+            }
         }
-    ];
+    }
+    
+    return detections;
+}
+
+// Process YOLO-style output
+function processYoloOutput(predArray) {
+    debugLog('Processing YOLO-style output format', 'info');
+    const detections = [];
+    
+    // Check if we have enough data
+    if (!predArray || predArray.length < 5 || !predArray[0] || !predArray[0].length) {
+        debugLog('YOLO data format not recognized', 'warning');
+        return [];
+    }
+    
+    // Get number of boxes to process
+    const numBoxes = predArray[0].length;
+    debugLog(`Processing ${numBoxes} potential YOLO detections`, 'info');
+    
+    // Extract each box
+    for (let i = 0; i < numBoxes; i++) {
+        // Get values for this detection
+        const x = predArray[0][i];
+        const y = predArray[1][i];
+        const w = predArray[2][i];
+        const h = predArray[3][i];
+        const confidence = predArray[4][i];
+        
+        // Filter by confidence
+        if (confidence >= MIN_CONFIDENCE) {
+            // Convert to corner format
+            const x1 = x - w/2;
+            const y1 = y - h/2;
+            const x2 = x + w/2;
+            const y2 = y + h/2;
+            
+            // Add to detections
+            detections.push({
+                box: { x1, y1, x2, y2 },
+                class: 0, // Default to class 0 (ball)
+                confidence: confidence
+            });
+        }
+    }
+    
+    debugLog(`Found ${detections.length} valid YOLO detections`, 'success');
+    return detections;
 }
 
 // Draw detection boxes on canvas
