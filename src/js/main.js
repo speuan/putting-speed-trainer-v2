@@ -392,8 +392,8 @@ async function startCamera() {
         state.error = error;
         updateButtonStates();
         
-            // Try fallback to any available camera
-            try {
+        // Try fallback to any available camera
+        try {
             console.log('Attempting fallback camera approach');
             const fallbackConstraints = {
                 video: true,
@@ -411,22 +411,23 @@ async function startCamera() {
             videoElement.setAttribute('muted', 'true');
             videoElement.setAttribute('autoplay', 'true');
             
-                await videoElement.play();
-                
+            await videoElement.play();
+            
             canvasElement.width = videoElement.videoWidth || MODEL_INPUT_SIZE;
             canvasElement.height = videoElement.videoHeight || MODEL_INPUT_SIZE;
-                
+            
             state.isCameraReady = true;
             
             // We're not automatically processing frames anymore
             state.isProcessing = false;
             
             updateButtonStates();
-                
-                processFrame();
-                
-                debugLog('Camera started with fallback settings', 'warning');
-            } catch (fallbackError) {
+            
+            // Enable capture button when camera is ready
+            captureButton.disabled = false;
+            
+            debugLog('Camera started with fallback settings - press "Take Photo" to capture a frame', 'warning');
+        } catch (fallbackError) {
             console.error('Fallback camera error:', fallbackError);
             debugLog(`Fallback camera failed: ${fallbackError.message}`, 'error');
             alert('Could not access camera. Please ensure camera permissions are granted and try again.');
