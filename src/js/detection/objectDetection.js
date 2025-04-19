@@ -2,17 +2,7 @@ import { debugLog } from '../utils/debug.js';
 
 // Constants
 export const MODEL_INPUT_SIZE = 640;
-export let MIN_CONFIDENCE = 0.5;
-
-// Function to update MIN_CONFIDENCE from outside
-export function setMinConfidence(value) {
-    if (value >= 0 && value <= 1) {
-        MIN_CONFIDENCE = value;
-        debugLog(`Detection confidence threshold updated to ${value}`, 'info');
-        return true;
-    }
-    return false;
-}
+export const MIN_CONFIDENCE = 0.5;
 
 let model = null;
 let isModelLoaded = false;

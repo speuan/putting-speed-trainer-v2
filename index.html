@@ -233,38 +233,6 @@
         .debug-button:hover {
             background-color: #555;
         }
-        
-        /* Slider styles */
-        #confidenceSlider {
-            -webkit-appearance: none;
-            width: 100%;
-            height: 15px;
-            border-radius: 5px;
-            background: #333;
-            outline: none;
-        }
-        
-        #confidenceSlider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #4CAF50;
-            cursor: pointer;
-        }
-        
-        #confidenceSlider::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #4CAF50;
-            cursor: pointer;
-        }
-        
-        #confidenceControl {
-            width: 200px;
-        }
     </style>
 </head>
 <body>
@@ -338,12 +306,6 @@
         <button id="loadModelButton" type="button" class="debug-button">Load Model</button>
         <button id="testTensorButton" type="button" class="debug-button">Test Tensor</button>
         <button id="clearCanvasButton" type="button" class="debug-button">Clear Canvas</button>
-        
-        <!-- Confidence threshold slider -->
-        <div id="confidenceControl" style="margin-top: 10px; background: rgba(0,0,0,0.7); padding: 8px; border-radius: 4px;">
-            <label for="confidenceSlider" style="color: white; display: block; margin-bottom: 5px;">Detection Confidence: <span id="confidenceValue">0.5</span></label>
-            <input type="range" id="confidenceSlider" min="0.05" max="0.95" step="0.05" value="0.5" style="width: 100%;">
-        </div>
     </div>
 
     <div id="debugPanel"></div>
@@ -495,26 +457,6 @@
                 } catch (error) {
                     addDebugMessage(`Manual model load error: ${error.message}`, 'error');
                     console.error('Model load error:', error);
-                }
-            });
-            
-            // Confidence slider
-            const confidenceSlider = document.getElementById('confidenceSlider');
-            const confidenceValue = document.getElementById('confidenceValue');
-            
-            confidenceSlider.addEventListener('input', async () => {
-                const value = parseFloat(confidenceSlider.value);
-                confidenceValue.textContent = value.toFixed(2);
-                
-                try {
-                    // Import the module that contains MIN_CONFIDENCE
-                    const objectDetection = await import('./src/js/detection/objectDetection.js');
-                    
-                    // Update the detection threshold
-                    objectDetection.setMinConfidence(value);
-                    addDebugMessage(`Detection confidence set to ${value.toFixed(2)}`, 'info');
-                } catch (error) {
-                    addDebugMessage(`Failed to update confidence: ${error.message}`, 'error');
                 }
             });
             
