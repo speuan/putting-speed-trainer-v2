@@ -37,6 +37,7 @@ const MIN_CONFIDENCE = 0.7; // Minimum confidence threshold of 70%
 const IOU_THRESHOLD = 0.2; // Intersection over Union threshold for clustering
 const PROCESS_EVERY_N_FRAMES = 3; // Process every 3rd frame
 const MODEL_INPUT_SIZE = 640; // Model input size
+const MODEL_CLASSES = { 0: 'ball_golf', 1: 'coin' }; // Classes from my_model_web_model_5
 let frameCount = 0;
 let lastProcessedDetections = null;
 
@@ -71,7 +72,7 @@ async function loadModel() {
         debugLog(`TensorFlow.js version: ${tf.version.tfjs}`, 'info');
         debugLog(`Backend: ${tf.getBackend()}`, 'info');
         
-        const modelUrl = './my_model_web_model/model.json';
+        const modelUrl = './my_model_web_model_5/model.json';
         debugLog(`Attempting to load model from: ${modelUrl}`, 'info');
         
         try {
@@ -158,13 +159,14 @@ function processDetections(predictions, inputSize) {
     const detections = [];
     for (let i = 0; i < predictions[0].length; i++) {
         const confidence = predictions[4][i];
-        if (confidence > MIN_CONFIDENCE) {  // Only consider detections above 70%
+        if (confidence > MIN_CONFIDENCE) {  // Only consider detections above MIN_CONFIDENCE
             detections.push({
                 x: predictions[0][i] / inputSize,
                 y: predictions[1][i] / inputSize,
                 w: predictions[2][i] / inputSize,
                 h: predictions[3][i] / inputSize,
-                confidence: confidence
+                confidence: confidence,
+                class: 0 // Default to ball_golf (class 0)
             });
         }
     }
@@ -190,7 +192,8 @@ function processDetections(predictions, inputSize) {
         bestCluster.y,
         bestCluster.w,
         bestCluster.h,
-        bestCluster.confidence
+        bestCluster.confidence,
+        bestCluster.class
     ];
 }
 
@@ -201,7 +204,8 @@ function clusterDetections(detections) {
         let added = false;
         
         for (const cluster of clusters) {
-            if (calculateIoU(detection, cluster) > IOU_THRESHOLD) {
+            // Only cluster detections of the same class
+            if (cluster.class === detection.class && calculateIoU(detection, cluster) > IOU_THRESHOLD) {
                 // Merge detection into cluster with weighted average
                 const totalWeight = cluster.confidence + detection.confidence;
                 cluster.x = (cluster.x * cluster.confidence + detection.x * detection.confidence) / totalWeight;
@@ -289,7 +293,7 @@ function drawDetections(detection) {
     }
     
     // Extract values from detection (these are normalized 0-1)
-    const [x, y, w, h, confidence] = detection;
+    const [x, y, w, h, confidence, classId = 0] = detection;
     
     // Convert normalized coordinates to canvas coordinates
     const centerX = x * canvasElement.width;
@@ -302,13 +306,23 @@ function drawDetections(detection) {
     const drawY = centerY - (boxHeight / 2);
     
     try {
+        // Set color based on class 
+        const colors = {
+            'ball_golf': '#00FF00', // Green for golf ball
+            'coin': '#FFFF00'       // Yellow for coin
+        };
+        
+        // Determine class name and color
+        const className = MODEL_CLASSES[classId] || 'unknown';
+        const color = colors[className] || '#00FF00';
+        
         // Draw thin bounding box
         canvasCtx.lineWidth = 2;
-        canvasCtx.strokeStyle = '#00FF00';
+        canvasCtx.strokeStyle = color;
         canvasCtx.strokeRect(drawX, drawY, boxWidth, boxHeight);
         
-        // Draw small confidence score
-        const text = `${(confidence * 100).toFixed(1)}%`;
+        // Draw class name and confidence score
+        const text = `${className}: ${(confidence * 100).toFixed(1)}%`;
         canvasCtx.font = '14px Arial';
         
         // Text background
@@ -323,7 +337,7 @@ function drawDetections(detection) {
         );
         
         // Text
-        canvasCtx.fillStyle = '#00FF00';
+        canvasCtx.fillStyle = color;
         canvasCtx.fillText(text, drawX + padding, drawY - 6);
         
     } catch (error) {
